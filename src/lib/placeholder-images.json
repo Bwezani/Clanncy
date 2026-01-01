@@ -1,0 +1,22 @@
+{
+  "placeholderImages": [
+    {
+      "id": "hero-chicken",
+      "description": "A beautifully roasted chicken on a platter.",
+      "imageUrl": "https://images.unsplash.com/photo-1501200291289-c5a76c232e5f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cm9hc3RlZCUyMGNoaWNrZW58ZW58MHx8fHwxNzY1NjQxNzEzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "roasted chicken"
+    },
+    {
+      "id": "recipe-card-placeholder",
+      "description": "Placeholder for recipe image.",
+      "imageUrl": "https://images.unsplash.com/photo-1576021182211-9ea8dced3690?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxmb29kJTIwaW5ncmVkaWVudHN8ZW58MHx8fHwxNzY1Njg3ODIyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "food ingredients"
+    },
+    {
+      "id": "order-history-item",
+      "description": "An image representing a food order.",
+      "imageUrl": "https://images.unsplash.com/photo-1761526531628-428a8f2b0840?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHx0YWtlb3V0JTIwYmFnfGVufDB8fHx8MTc2NTY4NzgyMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "takeout bag"
+    }
+  ]
+}
