@@ -12,10 +12,11 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { submitOrder } from '@/lib/actions';
-import { orderSchema, universitySchema, type OrderInput } from '@/lib/schema';
+import { orderSchema, universitySchema, lusakaTownsSchema, type OrderInput } from '@/lib/schema';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useUser } from '@/hooks/use-user';
 
 const PRICE_WHOLE = 150.00;
 const PRICE_PER_PIECE = 25.00;
@@ -23,6 +24,7 @@ const PRICE_PER_PIECE = 25.00;
 export default function OrderForm() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
+  const { user } = useUser();
   const [nextDeliveryDate, setNextDeliveryDate] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function OrderForm() {
       block: '',
       room: '',
       phone: '',
-      area: '',
+      area: undefined,
       street: '',
       houseNumber: ''
     },
@@ -66,10 +68,17 @@ export default function OrderForm() {
 
   const onSubmit = (values: OrderInput) => {
     const deviceId = localStorage.getItem('deviceId');
-    const valuesWithDeviceId = { ...values, deviceId: deviceId || undefined };
+    const submissionData: OrderInput & { userId?: string } = { 
+        ...values, 
+        deviceId: deviceId || undefined 
+    };
+
+    if (user) {
+        submissionData.userId = user.uid;
+    }
 
     startTransition(async () => {
-      const result = await submitOrder(valuesWithDeviceId);
+      const result = await submitOrder(submissionData);
       if (result.success) {
         toast({
           title: 'Success!',
@@ -246,7 +255,7 @@ export default function OrderForm() {
                           <SelectValue placeholder="Select your school" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper">
                         {universitySchema.options.map((school) => (
                           <SelectItem key={school} value={school}>{school}</SelectItem>
                         ))}
@@ -261,7 +270,28 @@ export default function OrderForm() {
             </div>
           ) : (
              <div className="grid md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="area" render={({ field }) => (<FormItem><FormLabel>Area</FormLabel><FormControl><Input placeholder="e.g., Kalingalinga" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField
+                    control={form.control}
+                    name="area"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Area</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select your area" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent position="popper">
+                            {lusakaTownsSchema.options.map((town) => (
+                            <SelectItem key={town} value={town}>{town}</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
                 <FormField control={form.control} name="street" render={({ field }) => (<FormItem><FormLabel>Street Name</FormLabel><FormControl><Input placeholder="e.g., Lumumba Rd" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="houseNumber" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>House Number / Description</FormLabel><FormControl><Input placeholder="e.g., Plot 1234 or 'Blue gate'" {...field} /></FormControl><FormMessage /></FormItem>)} />
              </div>

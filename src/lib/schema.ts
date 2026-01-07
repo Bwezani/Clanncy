@@ -14,8 +14,71 @@ export const universitySchema = z.enum([
   'Other',
 ]);
 
+export const lusakaTownsSchema = z.enum([
+    'Avondale',
+    'Buckley',
+    'Chaisa',
+    'Chakunkula',
+    'Chamba Valley',
+    'Chainda',
+    'Chalala',
+    'Chawama',
+    'Chelston',
+    'Chibombo',
+    'Chilenje',
+    'Chingwere',
+    'Chunga',
+    'Citra',
+    'Emmasdale',
+    'Fairview',
+    'Garden',
+    'Handsworth',
+    'Ibex Hill',
+    'Industrial Area',
+    'Kabulonga',
+    'Kalingalinga',
+    'Kalundu',
+    'Kamanga',
+    'Kamwala',
+    'Kanyama',
+    'Kaunda Square',
+    'Kayope',
+    'Leopards Hill',
+    'Libala',
+    'Lilayi',
+    'Longacres',
+    'Lusaka West',
+
+    'Makeni',
+    'Mandevu',
+    'Matero',
+    'Meanwood',
+    'Mtendere',
+    'Munali',
+    'Mutendere',
+    'Mwembeshi',
+    'Ngombe',
+    'Northmead',
+    'Nyumba Yanga',
+    'Olympia',
+    'PHI',
+    'Presidential',
+    'Rhodes Park',
+    'Roma',
+    'Salama Park',
+    'Silverest',
+    'State Lodge',
+    'Thornpark',
+    'Tigwilizane',
+    'Twin Palm',
+    'Villa Elizabetha',
+    'Woodlands',
+    'Other'
+]);
+
 export const orderSchema = z.object({
   deviceId: z.string().optional(),
+  userId: z.string().optional(),
   chickenType: z.enum(['whole', 'pieces']),
   quantity: z.number().min(1),
   price: z.number(),
@@ -25,7 +88,7 @@ export const orderSchema = z.object({
   school: universitySchema.optional(),
   block: z.string().optional(),
   room: z.string().optional(),
-  area: z.string().optional(),
+  area: lusakaTownsSchema.optional(),
   street: z.string().optional(),
   houseNumber: z.string().optional(),
 }).superRefine((data, ctx) => {
@@ -40,8 +103,8 @@ export const orderSchema = z.object({
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Room number is required.', path: ['room'] });
         }
     } else if (data.deliveryLocationType === 'off-campus') {
-        if (!data.area || data.area.trim().length < 1) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Area is required.', path: ['area'] });
+        if (!data.area) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select an area.', path: ['area'] });
         }
         if (!data.street || data.street.trim().length < 1) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Street is required.', path: ['street'] });

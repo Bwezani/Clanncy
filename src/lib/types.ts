@@ -27,4 +27,5 @@ export interface FirestoreOrder {
   street?: string;
   houseNumber?: string;
   deviceId?: string;
+  userId?: string;
 }

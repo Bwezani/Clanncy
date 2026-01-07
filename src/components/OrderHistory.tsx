@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp, or } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase/config';
 import type { Order as OrderType } from '@/lib/types';
@@ -11,12 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { List, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useUser } from '@/hooks/use-user';
 
 // Extended Order type to include what we get from Firestore
 type FetchedOrder = OrderInput & {
     id: string;
     createdAt: Timestamp;
     status: 'Pending' | 'Ready for Pickup' | 'Delivered';
+    userId?: string;
 };
 
 function formatOrderItems(order: FetchedOrder): string {
@@ -73,28 +75,49 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
 export function OrderHistory() {
   const [orders, setOrders] = useState<FetchedOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useUser();
 
   useEffect(() => {
     const fetchOrders = async () => {
       setIsLoading(true);
       const deviceId = localStorage.getItem('deviceId');
-      if (!deviceId) {
+      
+      if (!user && !deviceId) {
         setIsLoading(false);
         return;
       }
 
       try {
-        const q = query(
-          collection(db, 'orders'),
-          where('deviceId', '==', deviceId),
-          orderBy('createdAt', 'desc')
-        );
+        const orderColl = collection(db, 'orders');
+        let q;
+
+        if (user) {
+          const constraints = [orderBy('createdAt', 'desc')];
+          const whereClauses = [where('userId', '==', user.uid)];
+          if (deviceId) {
+            whereClauses.push(where('deviceId', '==', deviceId));
+          }
+          q = query(orderColl, or(...whereClauses), ...constraints);
+        } else if (deviceId) {
+           q = query(
+            orderColl,
+            where('deviceId', '==', deviceId),
+            orderBy('createdAt', 'desc')
+          );
+        } else {
+          setIsLoading(false);
+          return;
+        }
+
         const querySnapshot = await getDocs(q);
         const fetchedOrders: FetchedOrder[] = [];
         querySnapshot.forEach((doc) => {
           fetchedOrders.push({ id: doc.id, ...doc.data() } as FetchedOrder);
         });
-        setOrders(fetchedOrders);
+
+        const uniqueOrders = Array.from(new Map(fetchedOrders.map(order => [order.id, order])).values());
+        
+        setOrders(uniqueOrders);
       } catch (error) {
         console.error("Error fetching orders:", error);
       } finally {
@@ -103,7 +126,7 @@ export function OrderHistory() {
     };
 
     fetchOrders();
-  }, []);
+  }, [user]);
 
   const formattedOrders: OrderType[] = orders.map(order => ({
       id: order.id,

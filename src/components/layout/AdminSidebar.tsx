@@ -1,7 +1,8 @@
 
 'use client'
 
-import { Home, Utensils } from "lucide-react";
+import { Home } from "lucide-react";
+import Image from 'next/image';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -16,7 +17,7 @@ export default function AdminSidebar() {
     return (
         <aside className="hidden md:flex flex-col gap-4 w-64 p-4 border-r bg-background sticky top-0 h-screen">
             <Link href="/" className="flex items-center gap-2 font-headline mb-4">
-                <Utensils className="h-8 w-8 text-primary" />
+                <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={32} height={32} />
                 <span className="text-2xl font-bold tracking-tight text-foreground">
                     Curbside
                 </span>

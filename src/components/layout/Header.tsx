@@ -2,8 +2,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useMemo } from 'react';
-import { Utensils, Menu, LayoutDashboard, LogOut } from 'lucide-react';
+import { Menu, LayoutDashboard, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '../ThemeToggle';
@@ -52,9 +53,9 @@ export default function Header() {
     <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-40 border-b">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         <Link href="/" className="flex items-center gap-2 font-headline" onClick={handleLinkClick}>
-          <Utensils className="h-6 w-6 text-primary" />
+          <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={28} height={28} />
           <span className="text-xl font-bold tracking-tight text-foreground">
-            Curbside
+            FarmFresh
           </span>
         </Link>
         <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
@@ -92,9 +93,9 @@ export default function Header() {
                     <SheetHeader>
                         <SheetTitle>
                            <Link href="/" className="flex items-center gap-2 font-headline" onClick={handleLinkClick}>
-                                <Utensils className="h-6 w-6 text-primary" />
+                                <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={28} height={28} />
                                 <span className="text-xl font-bold tracking-tight text-foreground">
-                                    Curbside
+                                    FarmFresh
                                 </span>
                             </Link>
                         </SheetTitle>

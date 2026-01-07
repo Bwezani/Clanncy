@@ -2,6 +2,7 @@
 'use client'
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { BarChart, Home, Menu, Package, Settings, Utensils } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -41,7 +42,7 @@ export default function AdminMobileHeader() {
     return (
         <header className="md:hidden flex items-center justify-between h-16 px-4 border-b bg-background sticky top-0 z-50">
              <Link href="/" className="flex items-center gap-2 font-headline">
-                <Utensils className="h-6 w-6 text-primary" />
+                <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={28} height={28} />
                 <span className="text-xl font-bold tracking-tight text-foreground">
                     Curbside
                 </span>
@@ -59,7 +60,7 @@ export default function AdminMobileHeader() {
                         <SheetHeader>
                             <SheetTitle>
                                 <Link href="/" className="flex items-center gap-2 font-headline" onClick={handleLinkClick}>
-                                    <Utensils className="h-6 w-6 text-primary" />
+                                    <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={28} height={28} />
                                     <span className="text-xl font-bold tracking-tight text-foreground">
                                         Curbside
                                     </span>
