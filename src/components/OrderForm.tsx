@@ -1,12 +1,23 @@
-"use client";
+
+'use client';
 
 import { useState, useEffect, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Home, School, Minus, Plus, Info, CalendarClock } from 'lucide-react';
+import { Loader2, Home, School, Minus, Plus, Info, CalendarClock, ChevronsUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -17,29 +28,176 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useUser } from '@/hooks/use-user';
+import { Separator } from './ui/separator';
+import { doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import type { Prices } from '@/lib/types';
 
-const PRICE_WHOLE = 150.00;
-const PRICE_PER_PIECE = 25.00;
+
+const defaultPrices: Prices = {
+    whole: 150.00,
+    mixedPiece: 15.00,
+    isChoosePiecesEnabled: true,
+    pieces: {
+        breasts: 30.0,
+        thighs: 20.0,
+        drumsticks: 15.0,
+        wings: 10.0,
+    }
+};
+
+const PieceSelectionDialog = ({ onSave, initialValues, prices }: { onSave: (pieces: OrderInput['pieceDetails']) => void, initialValues: OrderInput['pieceDetails'], prices: Prices['pieces'] }) => {
+  const [pieces, setPieces] = useState(initialValues || { breasts: 0, thighs: 0, drumsticks: 0, wings: 0 });
+
+  const handlePieceChange = (piece: keyof typeof pieces, value: number) => {
+    setPieces(prev => ({ ...prev, [piece]: Math.max(0, value) }));
+  };
+
+  const totalPieces = Object.values(pieces).reduce((sum, val) => sum + val, 0);
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="w-full">
+          <ChevronsUpDown className="mr-2 h-4 w-4" />
+          Select Pieces ({totalPieces > 0 ? `${totalPieces} selected` : 'Click here'})
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Select Your Chicken Pieces</DialogTitle>
+          <DialogDescription>Choose the quantity for each type of piece. Prices are per piece.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {Object.entries(prices).map(([key, price]) => (
+             <div key={key} className="flex items-center justify-between">
+              <div>
+                <p className="font-medium capitalize">{key}</p>
+                <p className="text-sm text-muted-foreground">K{price.toFixed(2)}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handlePieceChange(key as keyof typeof pieces, pieces[key as keyof typeof pieces] - 1)}
+                  disabled={pieces[key as keyof typeof pieces] <= 0}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="number"
+                  min="0"
+                  className="w-16 text-center"
+                  value={pieces[key as keyof typeof pieces]}
+                  onChange={(e) => handlePieceChange(key as keyof typeof pieces, parseInt(e.target.value, 10) || 0)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handlePieceChange(key as keyof typeof pieces, pieces[key as keyof typeof pieces] + 1)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" onClick={() => onSave(pieces)}>Save Selection</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 
 export default function OrderForm() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const { user } = useUser();
   const [nextDeliveryDate, setNextDeliveryDate] = useState<Date | null>(null);
+  const [prices, setPrices] = useState<Prices>(defaultPrices);
+  const [isLoadingPrices, setIsLoadingPrices] = useState(true);
 
   useEffect(() => {
+    // Attempt to load from localStorage first for faster initial load
     const storedDate = localStorage.getItem('nextDeliveryDate');
     if (storedDate) {
       setNextDeliveryDate(new Date(storedDate));
     }
+
+    // Set up a real-time listener for the delivery date
+    const deliveryDocRef = doc(db, 'settings', 'delivery');
+    const unsubscribe = onSnapshot(deliveryDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.nextDeliveryDate && data.nextDeliveryDate instanceof Timestamp) {
+          const newDate = data.nextDeliveryDate.toDate();
+          setNextDeliveryDate(newDate);
+          localStorage.setItem('nextDeliveryDate', newDate.toISOString());
+        } else {
+            setNextDeliveryDate(null);
+            localStorage.removeItem('nextDeliveryDate');
+        }
+      }
+    });
+
+    return () => unsubscribe(); // Cleanup listener on component unmount
+  }, []);
+
+  useEffect(() => {
+    // Attempt to load from localStorage first for faster initial load
+    const cachedPrices = localStorage.getItem('curbsidePrices');
+    if (cachedPrices) {
+      const parsedPrices = JSON.parse(cachedPrices);
+      // Ensure the feature flag has a default value if it's not in cache
+      if (typeof parsedPrices.isChoosePiecesEnabled === 'undefined') {
+        parsedPrices.isChoosePiecesEnabled = true;
+      }
+      setPrices(parsedPrices);
+      setIsLoadingPrices(false); // Assume cached data is good enough for initial render
+    }
+
+    // Set up real-time listener for prices
+    const pricesDocRef = doc(db, 'settings', 'pricing');
+    const unsubscribe = onSnapshot(pricesDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const fetchedPrices = docSnap.data() as Prices;
+        // Ensure the feature flag has a default value if it's missing from Firestore
+        if (typeof fetchedPrices.isChoosePiecesEnabled === 'undefined') {
+          fetchedPrices.isChoosePiecesEnabled = true;
+        }
+        setPrices(fetchedPrices);
+        localStorage.setItem('curbsidePrices', JSON.stringify(fetchedPrices));
+      }
+      setIsLoadingPrices(false);
+    }, (error) => {
+      console.error("Could not fetch prices:", error);
+      setIsLoadingPrices(false); // Stop loading even if there's an error
+    });
+
+    return () => unsubscribe(); // Cleanup listener
   }, []);
 
   const form = useForm<OrderInput>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
       chickenType: 'whole',
+      piecesType: undefined,
       quantity: 1,
-      price: PRICE_WHOLE,
+      price: prices.whole,
+      pieceDetails: {
+        breasts: 0,
+        thighs: 0,
+        drumsticks: 0,
+        wings: 0,
+      },
       name: '',
       deliveryLocationType: 'school',
       school: 'University of Zambia (UNZA)',
@@ -51,20 +209,45 @@ export default function OrderForm() {
       houseNumber: ''
     },
   });
+  
+  useEffect(() => {
+    form.reset({
+      ...form.getValues(),
+      price: form.getValues('quantity') * prices.whole,
+    })
+  }, [prices.whole, form]);
 
   const chickenType = form.watch('chickenType');
+  const piecesType = form.watch('piecesType');
   const quantity = form.watch('quantity');
-  const deliveryLocationType = form.watch('deliveryLocationType');
+  const pieceDetails = form.watch('pieceDetails');
 
   useEffect(() => {
-    let newPrice: number;
     if (chickenType === 'whole') {
-      newPrice = quantity * PRICE_WHOLE;
-    } else {
-      newPrice = quantity * PRICE_PER_PIECE;
+      const newPrice = quantity * prices.whole;
+      form.setValue('price', newPrice);
+    } else if (chickenType === 'pieces') {
+      if (piecesType === 'mixed') {
+        const newPrice = quantity * prices.mixedPiece;
+        form.setValue('price', newPrice);
+      }
     }
-    form.setValue('price', newPrice);
-  }, [chickenType, quantity, form]);
+  }, [chickenType, piecesType, quantity, form, prices]);
+  
+  useEffect(() => {
+    if (chickenType === 'pieces' && piecesType === 'custom') {
+        const totalPieces = Object.values(pieceDetails || {}).reduce((sum, val) => sum + (val || 0), 0);
+        const newPrice = (
+            (pieceDetails?.breasts || 0) * prices.pieces.breasts +
+            (pieceDetails?.thighs || 0) * prices.pieces.thighs +
+            (pieceDetails?.drumsticks || 0) * prices.pieces.drumsticks +
+            (pieceDetails?.wings || 0) * prices.pieces.wings
+        );
+        form.setValue('quantity', totalPieces, { shouldValidate: true });
+        form.setValue('price', newPrice);
+    }
+  }, [chickenType, piecesType, pieceDetails, form, prices.pieces])
+
 
   const onSubmit = (values: OrderInput) => {
     const deviceId = localStorage.getItem('deviceId');
@@ -85,6 +268,7 @@ export default function OrderForm() {
           description: result.message,
         });
         form.reset();
+        form.setValue('price', prices.whole); // Reset price to default whole chicken price
       } else {
         toast({
           variant: 'destructive',
@@ -94,6 +278,18 @@ export default function OrderForm() {
       }
     });
   };
+  
+  const handlePiecesSave = (pieces: OrderInput['pieceDetails']) => {
+    form.setValue('pieceDetails', pieces, { shouldValidate: true, shouldDirty: true });
+  }
+
+  if (isLoadingPrices) {
+      return (
+          <div className="flex justify-center items-center h-96">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+      )
+  }
 
   return (
     <Form {...form}>
@@ -112,7 +308,17 @@ export default function OrderForm() {
                    <RadioGroup
                     onValueChange={(value) => {
                       field.onChange(value);
-                      form.setValue('quantity', 1);
+                      if (value === 'whole') {
+                          form.setValue('quantity', 1);
+                          form.setValue('piecesType', undefined);
+                      } else {
+                          form.setValue('quantity', 1);
+                          form.setValue('piecesType', 'mixed'); // Default to mixed
+                          // If choose pieces is disabled, it should always be mixed
+                          if (!prices.isChoosePiecesEnabled) {
+                            form.setValue('piecesType', 'mixed');
+                          }
+                      }
                     }}
                     defaultValue={field.value}
                     className="grid grid-cols-2 gap-4 items-start"
@@ -158,53 +364,179 @@ export default function OrderForm() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{chickenType === 'whole' ? 'Number of whole chickens' : 'Number of pieces'}</FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => field.value > 1 && field.onChange(field.value - 1)}
-                            disabled={field.value <= 1}
+            {chickenType === 'whole' && (
+                 <FormField
+                    control={form.control}
+                    name="quantity"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Number of whole chickens</FormLabel>
+                        <FormControl>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => field.value > 1 && field.onChange(field.value - 1)}
+                                    disabled={field.value <= 1}
+                                >
+                                    <Minus className="h-4 w-4" />
+                                </Button>
+                                <Input
+                                    {...field}
+                                    type="number"
+                                    min="1"
+                                    className="w-16 text-center"
+                                    onChange={(e) => {
+                                        const value = parseInt(e.target.value, 10);
+                                        if (value > 0) {
+                                            field.onChange(value);
+                                        } else if (e.target.value === '') {
+                                            field.onChange(1);
+                                        }
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => field.onChange(field.value + 1)}
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+            
+            {chickenType === 'pieces' && (
+              <div className="space-y-4">
+                <Separator />
+                {prices.isChoosePiecesEnabled ? (
+                  <FormField
+                    control={form.control}
+                    name="piecesType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Piece Options</FormLabel>
+                        <RadioGroup
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            if (value === 'mixed') {
+                              form.setValue('quantity', 1);
+                            } else {
+                              form.setValue('quantity', 0);
+                              form.setValue('pieceDetails', { breasts: 0, thighs: 0, drumsticks: 0, wings: 0 });
+                            }
+                          }}
+                          defaultValue={field.value}
+                          className="grid grid-cols-2 gap-4"
                         >
-                            <Minus className="h-4 w-4" />
-                        </Button>
-                        <Input
-                            {...field}
-                            type="number"
-                            min="1"
-                            className="w-16 text-center"
-                            onChange={(e) => {
-                                const value = parseInt(e.target.value, 10);
-                                if (value > 0) {
-                                    field.onChange(value);
-                                } else if (e.target.value === '') {
-                                    field.onChange(1);
-                                }
-                            }}
-                        />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => field.onChange(field.value + 1)}
-                        >
-                            <Plus className="h-4 w-4" />
-                        </Button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                          <FormItem>
+                            <RadioGroupItem value="mixed" id="mixed" className="peer sr-only" />
+                            <Label
+                              htmlFor="mixed"
+                              className={cn("flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary", "cursor-pointer")}
+                            >
+                              Mixed Pieces
+                            </Label>
+                          </FormItem>
+                          <FormItem>
+                            <RadioGroupItem value="custom" id="custom" className="peer sr-only" />
+                            <Label
+                              htmlFor="custom"
+                              className={cn("flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary", "cursor-pointer")}
+                            >
+                              Choose Pieces
+                            </Label>
+                          </FormItem>
+                        </RadioGroup>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  // If choose pieces is disabled, only show the "Mixed Pieces" label.
+                  <div>
+                    <Label className="text-base font-medium">Piece Options</Label>
+                    <p className="font-medium p-4 border rounded-md bg-muted/50 mt-2">Mixed Pieces</p>
+                  </div>
+                )}
+                
+                {piecesType === 'mixed' && (
+                  <FormField
+                    control={form.control}
+                    name="quantity"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Number of mixed pieces</FormLabel>
+                        <FormControl>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => field.value > 1 && field.onChange(field.value - 1)}
+                                    disabled={field.value <= 1}
+                                >
+                                    <Minus className="h-4 w-4" />
+                                </Button>
+                                <Input
+                                    {...field}
+                                    type="number"
+                                    min="1"
+                                    className="w-16 text-center"
+                                     onChange={(e) => {
+                                        const value = parseInt(e.target.value, 10);
+                                        if (value > 0) {
+                                            field.onChange(value);
+                                        } else if (e.target.value === '') {
+                                            field.onChange(1);
+                                        }
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => field.onChange(field.value + 1)}
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                )}
+                
+                {piecesType === 'custom' && prices.isChoosePiecesEnabled && (
+                    <FormField
+                        control={form.control}
+                        name="pieceDetails"
+                        render={() => (
+                            <FormItem>
+                                <FormLabel>Chicken Pieces</FormLabel>
+                                <FormControl>
+                                  <PieceSelectionDialog onSave={handlePiecesSave} initialValues={pieceDetails} prices={prices.pieces} />
+                                </FormControl>
+                                <FormMessage>{form.formState.errors.quantity?.message}</FormMessage>
+                            </FormItem>
+                        )}
+                    />
+                )}
+              </div>
+            )}
+
+
            <div className="text-right text-3xl font-bold text-primary transition-colors">
               K{form.watch('price').toFixed(2)}
           </div>
@@ -241,7 +573,7 @@ export default function OrderForm() {
             )}
            />
 
-          {deliveryLocationType === 'school' ? (
+          {form.watch('deliveryLocationType') === 'school' ? (
             <div className="grid md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}

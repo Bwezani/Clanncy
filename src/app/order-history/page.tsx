@@ -1,4 +1,6 @@
+
 import { OrderHistory } from '@/components/OrderHistory';
+import { ContactCard } from '@/components/ContactCard';
 
 export default function OrderHistoryPage() {
     return (
@@ -12,6 +14,9 @@ export default function OrderHistoryPage() {
                 </p>
             </div>
             <OrderHistory />
+            <div className="mt-12">
+              <ContactCard />
+            </div>
         </div>
     );
 }

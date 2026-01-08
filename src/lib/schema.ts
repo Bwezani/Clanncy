@@ -76,12 +76,21 @@ export const lusakaTownsSchema = z.enum([
     'Other'
 ]);
 
+const pieceDetailsSchema = z.object({
+  breasts: z.number().min(0).default(0),
+  thighs: z.number().min(0).default(0),
+  drumsticks: z.number().min(0).default(0),
+  wings: z.number().min(0).default(0),
+});
+
 export const orderSchema = z.object({
   deviceId: z.string().optional(),
   userId: z.string().optional(),
   chickenType: z.enum(['whole', 'pieces']),
-  quantity: z.number().min(1),
+  piecesType: z.enum(['mixed', 'custom']).optional(),
+  quantity: z.number().min(1, { message: 'You must select at least one item.' }),
   price: z.number(),
+  pieceDetails: pieceDetailsSchema.optional(),
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   phone: z.string().min(10, { message: 'Please enter a valid phone number.' }),
   deliveryLocationType: z.enum(['school', 'off-campus']).default('school'),
@@ -111,6 +120,18 @@ export const orderSchema = z.object({
         }
         if (!data.houseNumber || data.houseNumber.trim().length < 1) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'House number is required.', path: ['houseNumber'] });
+        }
+    }
+
+    if (data.chickenType === 'pieces') {
+        if (!data.piecesType) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select a piece type.', path: ['piecesType'] });
+        }
+        if (data.piecesType === 'custom') {
+            const totalPieces = Object.values(data.pieceDetails || {}).reduce((sum, val) => sum + (val || 0), 0);
+            if (totalPieces < 1) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select at least one chicken piece.', path: ['quantity'] });
+            }
         }
     }
 });

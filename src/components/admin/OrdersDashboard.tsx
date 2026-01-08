@@ -1,10 +1,11 @@
+
 "use client";
 
-import React from 'react';
-import type { Order } from '@/lib/types';
+import React, { useState } from 'react';
+import type { AdminOrder } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Info } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -13,22 +14,77 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAdmin } from '@/context/AdminContext';
 
 
-function OrderCard({ order, onMarkAsDelivered }: { order: Order, onMarkAsDelivered?: (orderId: string) => void }) {
+function OrderDetailsDialog({ order }: { order: AdminOrder }) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Info className="mr-2 h-4 w-4" />
+                    More Details
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Order Details</DialogTitle>
+                    <DialogDescription className="break-all">
+                        Full details for order ID: <span className="font-mono text-xs">{order.id}</span>
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                    <div>
+                        <h4 className="font-semibold">Customer</h4>
+                        <p>{order.name} - {order.phone}</p>
+                    </div>
+                    <div>
+                        <h4 className="font-semibold">Delivery Address</h4>
+                        {order.deliveryLocationType === 'school' ? (
+                            <p>{order.school}, {order.block}, Room {order.room}</p>
+                        ) : (
+                            <p>{order.area}, {order.street}, {order.houseNumber}</p>
+                        )}
+                    </div>
+                     <div>
+                        <h4 className="font-semibold">Order Date</h4>
+                        <p>{order.formattedDate}</p>
+                    </div>
+                    <div>
+                        <h4 className="font-semibold">Items</h4>
+                        <p>{order.items}</p>
+                    </div>
+                     <div className="text-right">
+                        <p className="font-bold text-lg text-primary">K{order.price.toFixed(2)}</p>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function OrderCard({ order, onMarkAsDelivered }: { order: AdminOrder, onMarkAsDelivered?: (orderId: string) => void }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="text-lg truncate" style={{ maxWidth: '200px' }}>{order.id}</CardTitle>
-                <CardDescription>{order.date}</CardDescription>
+                <CardTitle className="text-lg">{order.name}</CardTitle>
+                <CardDescription>{order.phone}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-4">
                 <p><span className="font-semibold">Items:</span> {order.items}</p>
                 <p><span className="font-semibold">Status:</span> {order.status}</p>
                 <p className="text-lg font-bold text-primary">K{order.price.toFixed(2)}</p>
+                 <OrderDetailsDialog order={order} />
             </CardContent>
             {onMarkAsDelivered && order.status !== 'Delivered' && (
                 <CardFooter>
@@ -47,38 +103,46 @@ function OrderCard({ order, onMarkAsDelivered }: { order: Order, onMarkAsDeliver
     );
 }
 
-function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: Order[], onMarkAsDelivered?: (orderId: string) => void, showStatus?: boolean }) {
+function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOrder[], onMarkAsDelivered?: (orderId: string) => void, showStatus?: boolean }) {
     return (
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>Customer</TableHead>
                     <TableHead>Items</TableHead>
                     {showStatus && <TableHead>Status</TableHead>}
                     <TableHead className="text-right">Price</TableHead>
-                    {onMarkAsDelivered && <TableHead className="text-right">Action</TableHead>}
+                    <TableHead className="text-center">Details</TableHead>
+                    {onMarkAsDelivered && <TableHead className="text-center">Action</TableHead>}
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {orders.map(order => (
                     <TableRow key={order.id}>
-                        <TableCell className="font-medium truncate" style={{ maxWidth: '150px' }}>{order.id}</TableCell>
-                        <TableCell>{order.date}</TableCell>
+                        <TableCell>
+                            <div className="font-medium">{order.name}</div>
+                            <div className="text-sm text-muted-foreground">{order.phone}</div>
+                        </TableCell>
                         <TableCell>{order.items}</TableCell>
                         {showStatus && <TableCell>{order.status}</TableCell>}
                         <TableCell className="text-right">K{order.price.toFixed(2)}</TableCell>
-                        {onMarkAsDelivered && order.status !== 'Delivered' && (
-                             <TableCell className="text-right">
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => onMarkAsDelivered(order.id)}
-                                    disabled={order.status === 'Delivered'}
-                                >
-                                    <Check className="mr-2 h-4 w-4" />
-                                    Mark as Delivered
-                                </Button>
+                        <TableCell className="text-center">
+                            <OrderDetailsDialog order={order} />
+                        </TableCell>
+                        {onMarkAsDelivered && (
+                             <TableCell className="text-center">
+                                {order.status !== 'Delivered' ? (
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => onMarkAsDelivered(order.id)}
+                                    >
+                                        <Check className="mr-2 h-4 w-4" />
+                                        Mark Delivered
+                                    </Button>
+                                ) : (
+                                    <span className="text-sm text-muted-foreground">Completed</span>
+                                )}
                             </TableCell>
                         )}
                     </TableRow>
@@ -143,11 +207,11 @@ export default function OrdersDashboard() {
                     isMobile ? (
                         <div className="space-y-4">
                             {orders.map(order => (
-                                <OrderCard key={order.id} order={order} />
+                                <OrderCard key={order.id} order={order} onMarkAsDelivered={markAsDelivered} />
                             ))}
                         </div>
                     ) : (
-                        <OrderTable orders={orders} showStatus />
+                        <OrderTable orders={orders} onMarkAsDelivered={markAsDelivered} showStatus />
                     )
                  ) : (
                     <p className="text-center text-muted-foreground py-8">No orders found.</p>
@@ -158,3 +222,5 @@ export default function OrdersDashboard() {
     </Tabs>
   );
 }
+
+    

@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, Timestamp, or } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase/config';
 import type { Order as OrderType } from '@/lib/types';
@@ -43,9 +44,12 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
         return emptyState;
     }
 
+    // Sort orders by date descending before rendering
+    const sortedOrders = [...orders].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     return (
         <div className="space-y-4">
-          {orders.map(order => (
+          {sortedOrders.map(order => (
             <Card key={order.id} className="shadow-md hover:shadow-xl transition-shadow duration-300">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-lg font-bold truncate" style={{ maxWidth: '150px' }}>{order.id}</CardTitle>
@@ -76,47 +80,55 @@ export function OrderHistory() {
   const [orders, setOrders] = useState<FetchedOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // This effect runs once to get the deviceId from localStorage.
+    const storedDeviceId = localStorage.getItem('deviceId');
+    if (storedDeviceId) {
+        setDeviceId(storedDeviceId);
+    }
+  }, []);
+
 
   useEffect(() => {
     const fetchOrders = async () => {
       setIsLoading(true);
-      const deviceId = localStorage.getItem('deviceId');
       
       if (!user && !deviceId) {
         setIsLoading(false);
         return;
       }
 
+      let allOrders: FetchedOrder[] = [];
+
       try {
         const orderColl = collection(db, 'orders');
-        let q;
-
+        
+        let queries = [];
+        // Always query by deviceId if it exists.
+        if (deviceId) {
+             queries.push(query(orderColl, where('deviceId', '==', deviceId)));
+        }
+        // If the user is logged in, also query by their userId.
         if (user) {
-          const constraints = [orderBy('createdAt', 'desc')];
-          const whereClauses = [where('userId', '==', user.uid)];
-          if (deviceId) {
-            whereClauses.push(where('deviceId', '==', deviceId));
-          }
-          q = query(orderColl, or(...whereClauses), ...constraints);
-        } else if (deviceId) {
-           q = query(
-            orderColl,
-            where('deviceId', '==', deviceId),
-            orderBy('createdAt', 'desc')
-          );
-        } else {
-          setIsLoading(false);
-          return;
+            queries.push(query(orderColl, where('userId', '==', user.uid)));
         }
 
-        const querySnapshot = await getDocs(q);
-        const fetchedOrders: FetchedOrder[] = [];
-        querySnapshot.forEach((doc) => {
-          fetchedOrders.push({ id: doc.id, ...doc.data() } as FetchedOrder);
-        });
-
-        const uniqueOrders = Array.from(new Map(fetchedOrders.map(order => [order.id, order])).values());
+        const querySnapshots = await Promise.all(queries.map(q => getDocs(q)));
         
+        querySnapshots.forEach(snapshot => {
+            snapshot.forEach((doc) => {
+                allOrders.push({ id: doc.id, ...doc.data() } as FetchedOrder);
+            });
+        })
+        
+        // Remove duplicates if a user is logged in (orders might have both userId and deviceId)
+        const uniqueOrders = Array.from(new Map(allOrders.map(order => [order.id, order])).values());
+        
+        // Sort by creation date descending
+        uniqueOrders.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+
         setOrders(uniqueOrders);
       } catch (error) {
         console.error("Error fetching orders:", error);
@@ -125,8 +137,11 @@ export function OrderHistory() {
       }
     };
 
-    fetchOrders();
-  }, [user]);
+    // We depend on deviceId being set, OR a user being logged in before fetching.
+    if (deviceId || user) {
+        fetchOrders();
+    }
+  }, [user, deviceId]);
 
   const formattedOrders: OrderType[] = orders.map(order => ({
       id: order.id,

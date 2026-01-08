@@ -13,6 +13,7 @@ import { LoginSignUpDialog } from '../auth/LoginSignUpDialog';
 import { useUser } from '@/hooks/use-user';
 import { signOut } from '@/lib/firebase/auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 const allNavLinks = [
     { href: '/', label: 'Order Now' },
@@ -59,12 +60,22 @@ export default function Header() {
           </span>
         </Link>
         <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
-            {navLinks.map(link => (
-                <Link key={link.href} href={link.href} className="text-foreground/70 hover:text-foreground transition-colors flex items-center gap-2">
-                    {link.icon && <link.icon className="h-4 w-4" />}
-                    {link.label}
-                </Link>
-            ))}
+            {navLinks.map(link => {
+                const isActive = pathname === link.href;
+                return (
+                    <Link 
+                        key={link.href} 
+                        href={link.href} 
+                        className={cn(
+                            "flex items-center gap-2 transition-colors",
+                            isActive ? "text-primary" : "text-foreground/70 hover:text-foreground"
+                        )}
+                    >
+                        {link.icon && <link.icon className="h-4 w-4" />}
+                        {link.label}
+                    </Link>
+                )
+            })}
             {user ? (
                 <>
                     <Avatar>
@@ -101,17 +112,23 @@ export default function Header() {
                         </SheetTitle>
                     </SheetHeader>
                     <div className="flex flex-col gap-4 pt-10">
-                    {navLinks.map(link => (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            onClick={handleLinkClick}
-                            className="text-lg font-medium text-foreground/80 hover:text-foreground transition-colors flex items-center gap-3 p-2 rounded-md hover:bg-muted"
-                        >
-                             {link.icon && <link.icon className="h-5 w-5" />}
-                            {link.label}
-                        </Link>
-                    ))}
+                    {navLinks.map(link => {
+                        const isActive = pathname === link.href;
+                        return (
+                            <Link
+                                key={link.href}
+                                href={link.href}
+                                onClick={handleLinkClick}
+                                className={cn(
+                                    "text-lg font-medium transition-colors flex items-center gap-3 p-2 rounded-md",
+                                    isActive ? "bg-muted text-primary" : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                                )}
+                            >
+                                {link.icon && <link.icon className="h-5 w-5" />}
+                                {link.label}
+                            </Link>
+                        )
+                    })}
                     <div className="border-t pt-4 mt-4">
                         {user ? (
                              <Button variant="outline" onClick={() => { signOut(); handleLinkClick(); }} className="w-full text-lg justify-start p-2 h-auto">
