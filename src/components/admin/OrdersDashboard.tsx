@@ -1,7 +1,7 @@
 
-"use client";
+'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { AdminOrder } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAdmin } from '@/context/AdminContext';
+import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Label } from '../ui/label';
+import { universitySchema, lusakaTownsSchema } from '@/lib/schema';
 
 
 function OrderDetailsDialog({ order }: { order: AdminOrder }) {
@@ -84,21 +88,22 @@ function OrderCard({ order, onMarkAsDelivered }: { order: AdminOrder, onMarkAsDe
                 <p><span className="font-semibold">Items:</span> {order.items}</p>
                 <p><span className="font-semibold">Status:</span> {order.status}</p>
                 <p className="text-lg font-bold text-primary">K{order.price.toFixed(2)}</p>
-                 <OrderDetailsDialog order={order} />
             </CardContent>
-            {onMarkAsDelivered && order.status !== 'Delivered' && (
-                <CardFooter>
+            <CardFooter className="flex gap-2">
+                 <OrderDetailsDialog order={order} />
+                {onMarkAsDelivered && order.status !== 'Delivered' && (
                      <Button
                         onClick={() => onMarkAsDelivered(order.id)}
                         disabled={order.status === 'Delivered'}
                         className="w-full"
                         variant="default"
+                        size="sm"
                     >
                         <Check className="mr-2 h-4 w-4" />
                         Mark as Delivered
                     </Button>
-                </CardFooter>
-            )}
+                )}
+            </CardFooter>
         </Card>
     );
 }
@@ -109,11 +114,11 @@ function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOr
             <TableHeader>
                 <TableRow>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Location</TableHead>
                     <TableHead>Items</TableHead>
                     {showStatus && <TableHead>Status</TableHead>}
                     <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-center">Details</TableHead>
-                    {onMarkAsDelivered && <TableHead className="text-center">Action</TableHead>}
+                    <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -123,15 +128,16 @@ function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOr
                             <div className="font-medium">{order.name}</div>
                             <div className="text-sm text-muted-foreground">{order.phone}</div>
                         </TableCell>
+                        <TableCell>
+                            {order.deliveryLocationType === 'school' ? order.school : order.area}
+                        </TableCell>
                         <TableCell>{order.items}</TableCell>
                         {showStatus && <TableCell>{order.status}</TableCell>}
                         <TableCell className="text-right">K{order.price.toFixed(2)}</TableCell>
-                        <TableCell className="text-center">
-                            <OrderDetailsDialog order={order} />
-                        </TableCell>
-                        {onMarkAsDelivered && (
-                             <TableCell className="text-center">
-                                {order.status !== 'Delivered' ? (
+                        <TableCell>
+                            <div className="flex justify-center gap-2">
+                                <OrderDetailsDialog order={order} />
+                                {onMarkAsDelivered && order.status !== 'Delivered' && (
                                     <Button
                                         variant="default"
                                         size="sm"
@@ -140,11 +146,9 @@ function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOr
                                         <Check className="mr-2 h-4 w-4" />
                                         Mark Delivered
                                     </Button>
-                                ) : (
-                                    <span className="text-sm text-muted-foreground">Completed</span>
                                 )}
-                            </TableCell>
-                        )}
+                            </div>
+                        </TableCell>
                     </TableRow>
                 ))}
             </TableBody>
@@ -156,8 +160,37 @@ function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOr
 export default function OrdersDashboard() {
   const { orders, markAsDelivered, isLoading } = useAdmin();
   const isMobile = useIsMobile();
+  const [campusTypeFilter, setCampusTypeFilter] = useState('all'); // 'all', 'school', 'off-campus'
+  const [locationFilter, setLocationFilter] = useState('all');
+
+  const openOrders = useMemo(() => orders.filter(o => o.status !== 'Delivered'), [orders]);
+
+  const filteredOpenOrders = useMemo(() => {
+    let filtered = openOrders;
+
+    if (campusTypeFilter !== 'all') {
+      filtered = filtered.filter(order => order.deliveryLocationType === campusTypeFilter);
+    }
+
+    if (locationFilter !== 'all') {
+      filtered = filtered.filter(order => {
+        if (campusTypeFilter === 'school') {
+          return order.school === locationFilter;
+        }
+        if (campusTypeFilter === 'off-campus') {
+          return order.area === locationFilter;
+        }
+        return true; // Should not happen if campusType is not selected
+      });
+    }
+
+    return filtered;
+  }, [openOrders, campusTypeFilter, locationFilter]);
   
-  const openOrders = orders.filter(o => o.status !== 'Delivered');
+  const handleCampusTypeChange = (value: string) => {
+    setCampusTypeFilter(value);
+    setLocationFilter('all'); // Reset specific location filter when campus type changes
+  };
 
   if (isLoading) {
     return (
@@ -170,29 +203,69 @@ export default function OrdersDashboard() {
   return (
     <Tabs defaultValue="open-orders" className="w-full space-y-8">
         <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="open-orders">Open Orders</TabsTrigger>
+            <TabsTrigger value="open-orders">
+                Open Orders
+                {openOrders.length > 0 && (
+                    <Badge className="ml-2 h-5">{openOrders.length}</Badge>
+                )}
+            </TabsTrigger>
             <TabsTrigger value="all-orders">All Orders</TabsTrigger>
         </TabsList>
         <TabsContent value="open-orders">
              <Card>
                 <CardHeader>
-                <CardTitle>Open Orders</CardTitle>
-                <CardDescription>Manage and fulfill pending and ready for pickup orders.</CardDescription>
+                    <CardTitle>Open Orders</CardTitle>
+                    <CardDescription>Manage and fulfill pending and ready for pickup orders.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                {openOrders.length > 0 ? (
-                    isMobile ? (
-                        <div className="space-y-4">
-                            {openOrders.map(order => (
-                                <OrderCard key={order.id} order={order} onMarkAsDelivered={markAsDelivered} />
-                            ))}
+                <CardContent className="space-y-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="campus-type-filter">Filter by Type</Label>
+                            <Select value={campusTypeFilter} onValueChange={handleCampusTypeChange}>
+                                <SelectTrigger id="campus-type-filter">
+                                    <SelectValue placeholder="Filter by type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All</SelectItem>
+                                    <SelectItem value="school">On-Campus</SelectItem>
+                                    <SelectItem value="off-campus">Off-Campus</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
+                        {campusTypeFilter !== 'all' && (
+                            <div>
+                                <Label htmlFor="location-filter">Filter by Location</Label>
+                                <Select value={locationFilter} onValueChange={setLocationFilter}>
+                                    <SelectTrigger id="location-filter">
+                                        <SelectValue placeholder="Select specific location" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">
+                                            {campusTypeFilter === 'school' ? 'All Schools' : 'All Areas'}
+                                        </SelectItem>
+                                        {(campusTypeFilter === 'school' ? universitySchema.options : lusakaTownsSchema.options).map(loc => (
+                                            <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                    </div>
+                    {filteredOpenOrders.length > 0 ? (
+                        isMobile ? (
+                            <div className="space-y-4">
+                                {filteredOpenOrders.map(order => (
+                                    <OrderCard key={order.id} order={order} onMarkAsDelivered={markAsDelivered} />
+                                ))}
+                            </div>
+                        ) : (
+                            <OrderTable orders={filteredOpenOrders} onMarkAsDelivered={markAsDelivered} showStatus />
+                        )
                     ) : (
-                        <OrderTable orders={openOrders} onMarkAsDelivered={markAsDelivered} showStatus />
-                    )
-                ) : (
-                    <p className="text-center text-muted-foreground py-8">No open orders.</p>
-                )}
+                        <p className="text-center text-muted-foreground py-8">
+                            {openOrders.length > 0 ? 'No open orders match your filter.' : 'No open orders.'}
+                        </p>
+                    )}
                 </CardContent>
             </Card>
         </TabsContent>
