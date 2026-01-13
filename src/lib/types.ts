@@ -1,5 +1,6 @@
 
 import type { Timestamp } from 'firebase/firestore';
+import type { OrderInput } from './schema';
 
 export type OrderStatus = 'Ready for Pickup' | 'Delivered' | 'Pending';
 
@@ -16,6 +17,8 @@ export type Order = {
   items: string;
   price: number;
   status: OrderStatus;
+  // Add full order details for receipt
+  fullOrder: FirestoreOrder;
 };
 
 // Type for data used within the Admin Dashboard context
@@ -42,6 +45,7 @@ export interface FirestoreOrder {
   createdAt: Timestamp;
   status: OrderStatus;
   chickenType: 'whole' | 'pieces';
+  piecesType?: 'mixed' | 'custom';
   quantity: number;
   price: number;
   pieceDetails?: PieceDetails;
@@ -98,4 +102,3 @@ export interface HomepageSettings {
     title: string;
     subtitle: string;
 }
-    

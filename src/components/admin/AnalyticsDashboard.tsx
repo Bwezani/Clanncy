@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"
-import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, subYears, eachDayOfInterval } from 'date-fns';
+import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subYears, eachDayOfInterval, isThisMonth } from 'date-fns';
 import type { DateRange } from "react-day-picker"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -13,7 +13,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Loader2, Smartphone, ShoppingCart } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Smartphone, ShoppingCart, DollarSign } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '../ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -32,6 +32,18 @@ export default function AnalyticsDashboard() {
     from: subDays(new Date(), 29),
     to: new Date(),
   })
+
+  const { totalRevenue, thisMonthRevenue } = useMemo(() => {
+    const deliveredOrders = orders.filter(o => o.status === 'Delivered');
+    const total = deliveredOrders.reduce((sum, order) => sum + order.price, 0);
+    
+    const monthly = deliveredOrders
+      .filter(order => isThisMonth(order.date))
+      .reduce((sum, order) => sum + order.price, 0);
+
+    return { totalRevenue: total, thisMonthRevenue: monthly };
+  }, [orders]);
+
 
   const filteredOrders = useMemo(() => {
     if (!date?.from || !date?.to) return [];
@@ -98,7 +110,35 @@ export default function AnalyticsDashboard() {
 
   return (
     <div className="space-y-8">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                        Total Revenue
+                    </CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">K{totalRevenue.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">
+                        From all delivered orders
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                        This Month's Revenue
+                    </CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">K{thisMonthRevenue.toFixed(2)}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Revenue for {format(new Date(), 'MMMM')}
+                    </p>
+                </CardContent>
+            </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">

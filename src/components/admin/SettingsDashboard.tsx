@@ -1,11 +1,11 @@
 
-"use client";
+'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Info, Loader2, Save } from 'lucide-react';
+import { Calendar as CalendarIcon, Info, Loader2, Save, Trash2, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,64 @@ import { Input } from '../ui/input';
 import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 
+
+function DangerZone() {
+    const { clearAllOrders, isSaving } = useAdmin();
+    const [confirmationCode, setConfirmationCode] = useState('');
+    const requiredCode = '0305';
+
+    return (
+        <Card className="border-destructive">
+            <CardHeader>
+                <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                <CardDescription>These actions are irreversible. Please proceed with caution.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Clear All Order Data
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                                <AlertTriangle className="h-6 w-6 text-destructive" />
+                                Are you absolutely sure?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete all order data from your database.
+                                To confirm, please type the confirmation code in the box below.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <Input
+                            type="text"
+                            placeholder="Confirmation code"
+                            value={confirmationCode}
+                            onChange={(e) => setConfirmationCode(e.target.value)}
+                        />
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setConfirmationCode('')}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => {
+                                    clearAllOrders();
+                                    setConfirmationCode('');
+                                }}
+                                disabled={confirmationCode !== requiredCode || isSaving}
+                            >
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                I understand, clear all orders
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function SettingsDashboard() {
   const { 
@@ -251,6 +308,8 @@ export default function SettingsDashboard() {
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Save All Settings
         </Button>
+        
+        <DangerZone />
     </div>
   );
 }

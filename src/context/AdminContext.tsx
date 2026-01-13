@@ -5,7 +5,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
 import type { Order, FirestoreOrder, Device, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice } from '@/lib/types';
 
 function formatOrderItems(order: FirestoreOrder): string {
@@ -14,15 +14,15 @@ function formatOrderItems(order: FirestoreOrder): string {
         return `${quantity}x Whole Chicken${quantity > 1 ? 's' : ''}`;
     }
     
-    if (order.chickenType === 'pieces' && order.pieceDetails) {
+    if (order.chickenType === 'pieces' && order.piecesType === 'custom' && order.pieceDetails) {
         const details = Object.entries(order.pieceDetails)
             .filter(([, qty]) => qty > 0)
-            .map(([piece, qty]) => `${qty}x ${piece}`)
+            .map(([piece, qty]) => `${qty}x ${piece.charAt(0).toUpperCase() + piece.slice(1)}`)
             .join(', ');
-        return details || `${quantity}x Chicken Piece${quantity > 1 ? 's' : ''}`;
+        return details || `${quantity}x Mixed Piece${quantity > 1 ? 's' : ''}`;
     }
 
-    return `${quantity}x Chicken Piece${quantity > 1 ? 's' : ''}`;
+    return `${quantity}x Mixed Piece${quantity > 1 ? 's' : ''}`;
 }
 
 const defaultPrices: Prices = {
@@ -51,6 +51,8 @@ interface AdminContextType {
     orders: AdminOrder[];
     devices: AdminDevice[];
     markAsDelivered: (orderId: string) => void;
+    deleteOrder: (orderId: string) => void;
+    clearAllOrders: () => void;
     nextDeliveryDate: Date | undefined;
     setNextDeliveryDate: (date: Date | undefined) => void;
     prices: Prices;
@@ -213,8 +215,52 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
     };
     
-    // This function now acts as a trigger to save all settings.
-    // The individual setting handlers update local state, and this saves everything.
+    const deleteOrder = async (orderId: string) => {
+        const orderDocRef = doc(db, 'orders', orderId);
+        try {
+            await deleteDoc(orderDocRef);
+            toast({
+                title: "Order Dropped",
+                description: `Order ${orderId} has been successfully deleted.`
+            });
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: "Delete Failed",
+                description: `Could not delete order ${orderId}.`
+            });
+        }
+    };
+    
+    const clearAllOrders = async () => {
+        setIsSaving(true);
+        try {
+            const ordersQuery = query(collection(db, 'orders'));
+            const querySnapshot = await getDocs(ordersQuery);
+            const batch = writeBatch(db);
+            
+            querySnapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+
+            toast({
+                title: "Success",
+                description: "All order data has been cleared."
+            });
+        } catch (error) {
+            console.error("Error clearing orders:", error);
+            toast({
+                variant: 'destructive',
+                title: "Clear Failed",
+                description: "Could not clear all order data."
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const saveAllSettings = async () => {
         setIsSaving(true);
         try {
@@ -265,6 +311,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             orders, 
             devices, 
             markAsDelivered, 
+            deleteOrder,
+            clearAllOrders,
             nextDeliveryDate, 
             setNextDeliveryDate,
             prices,
@@ -289,5 +337,3 @@ export function useAdmin() {
     }
     return context;
 }
-
-    

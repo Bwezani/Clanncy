@@ -4,8 +4,8 @@
 import React, { useState, useMemo } from 'react';
 import type { AdminOrder } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Button } from '@/components/ui/button';
-import { Check, Loader2, Info } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Check, Loader2, Info, Trash2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -14,6 +14,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
     Dialog,
     DialogContent,
@@ -29,6 +40,8 @@ import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
 import { universitySchema, lusakaTownsSchema } from '@/lib/schema';
+import { cn } from '@/lib/utils';
+import { cva } from 'class-variance-authority';
 
 
 function OrderDetailsDialog({ order }: { order: AdminOrder }) {
@@ -37,7 +50,7 @@ function OrderDetailsDialog({ order }: { order: AdminOrder }) {
             <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
                     <Info className="mr-2 h-4 w-4" />
-                    More Details
+                    Details
                 </Button>
             </DialogTrigger>
             <DialogContent>
@@ -77,7 +90,70 @@ function OrderDetailsDialog({ order }: { order: AdminOrder }) {
     )
 }
 
-function OrderCard({ order, onMarkAsDelivered }: { order: AdminOrder, onMarkAsDelivered?: (orderId: string) => void }) {
+function OrderActions({ order }: { order: AdminOrder }) {
+    const { markAsDelivered, deleteOrder } = useAdmin();
+    return (
+        <div className="flex justify-center gap-2">
+            <OrderDetailsDialog order={order} />
+            {order.status !== 'Delivered' && (
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button size="sm">
+                            <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Confirm Delivery</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will mark the order for <span className="font-bold">{order.name}</span> as delivered. This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                         <div className="space-y-2 rounded-lg border p-4">
+                            <p className="font-semibold">{order.items}</p>
+                            <p className="text-muted-foreground">{order.name} - {order.phone}</p>
+                            <p className="font-bold text-lg text-primary">K{order.price.toFixed(2)}</p>
+                        </div>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => markAsDelivered(order.id)}>
+                                Confirm
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="icon">
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Drop Order</span>
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Drop this order?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           This will permanently delete the order for <span className="font-bold">{order.name}</span>. This is for cancellations and cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={cn(buttonVariants({ variant: "destructive" }))}
+                            onClick={() => deleteOrder(order.id)}
+                        >
+                            Drop Order
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    )
+}
+
+
+function OrderCard({ order }: { order: AdminOrder }) {
     return (
         <Card>
             <CardHeader>
@@ -89,26 +165,14 @@ function OrderCard({ order, onMarkAsDelivered }: { order: AdminOrder, onMarkAsDe
                 <p><span className="font-semibold">Status:</span> {order.status}</p>
                 <p className="text-lg font-bold text-primary">K{order.price.toFixed(2)}</p>
             </CardContent>
-            <CardFooter className="flex gap-2">
-                 <OrderDetailsDialog order={order} />
-                {onMarkAsDelivered && order.status !== 'Delivered' && (
-                     <Button
-                        onClick={() => onMarkAsDelivered(order.id)}
-                        disabled={order.status === 'Delivered'}
-                        className="w-full"
-                        variant="default"
-                        size="sm"
-                    >
-                        <Check className="mr-2 h-4 w-4" />
-                        Mark as Delivered
-                    </Button>
-                )}
+            <CardFooter>
+                 <OrderActions order={order} />
             </CardFooter>
         </Card>
     );
 }
 
-function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOrder[], onMarkAsDelivered?: (orderId: string) => void, showStatus?: boolean }) {
+function OrderTable({ orders, showStatus }: { orders: AdminOrder[], showStatus?: boolean }) {
     return (
         <Table>
             <TableHeader>
@@ -135,19 +199,7 @@ function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOr
                         {showStatus && <TableCell>{order.status}</TableCell>}
                         <TableCell className="text-right">K{order.price.toFixed(2)}</TableCell>
                         <TableCell>
-                            <div className="flex justify-center gap-2">
-                                <OrderDetailsDialog order={order} />
-                                {onMarkAsDelivered && order.status !== 'Delivered' && (
-                                    <Button
-                                        variant="default"
-                                        size="sm"
-                                        onClick={() => onMarkAsDelivered(order.id)}
-                                    >
-                                        <Check className="mr-2 h-4 w-4" />
-                                        Mark Delivered
-                                    </Button>
-                                )}
-                            </div>
+                            <OrderActions order={order} />
                         </TableCell>
                     </TableRow>
                 ))}
@@ -158,7 +210,7 @@ function OrderTable({ orders, onMarkAsDelivered, showStatus }: { orders: AdminOr
 
 
 export default function OrdersDashboard() {
-  const { orders, markAsDelivered, isLoading } = useAdmin();
+  const { orders, isLoading } = useAdmin();
   const isMobile = useIsMobile();
   const [campusTypeFilter, setCampusTypeFilter] = useState('all'); // 'all', 'school', 'off-campus'
   const [locationFilter, setLocationFilter] = useState('all');
@@ -174,13 +226,13 @@ export default function OrdersDashboard() {
 
     if (locationFilter !== 'all') {
       filtered = filtered.filter(order => {
-        if (campusTypeFilter === 'school') {
+        if (order.deliveryLocationType === 'school') {
           return order.school === locationFilter;
         }
-        if (campusTypeFilter === 'off-campus') {
+        if (order.deliveryLocationType === 'off-campus') {
           return order.area === locationFilter;
         }
-        return true; // Should not happen if campusType is not selected
+        return false; // Should not happen if campusType is not selected
       });
     }
 
@@ -255,11 +307,11 @@ export default function OrdersDashboard() {
                         isMobile ? (
                             <div className="space-y-4">
                                 {filteredOpenOrders.map(order => (
-                                    <OrderCard key={order.id} order={order} onMarkAsDelivered={markAsDelivered} />
+                                    <OrderCard key={order.id} order={order} />
                                 ))}
                             </div>
                         ) : (
-                            <OrderTable orders={filteredOpenOrders} onMarkAsDelivered={markAsDelivered} showStatus />
+                            <OrderTable orders={filteredOpenOrders} showStatus />
                         )
                     ) : (
                         <p className="text-center text-muted-foreground py-8">
@@ -280,11 +332,11 @@ export default function OrdersDashboard() {
                     isMobile ? (
                         <div className="space-y-4">
                             {orders.map(order => (
-                                <OrderCard key={order.id} order={order} onMarkAsDelivered={markAsDelivered} />
+                                <OrderCard key={order.id} order={order} />
                             ))}
                         </div>
                     ) : (
-                        <OrderTable orders={orders} onMarkAsDelivered={markAsDelivered} showStatus />
+                        <OrderTable orders={orders} showStatus />
                     )
                  ) : (
                     <p className="text-center text-muted-foreground py-8">No orders found.</p>
