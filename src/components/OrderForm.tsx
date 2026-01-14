@@ -545,7 +545,7 @@ export default function OrderForm() {
         <section className="space-y-4 border p-4 rounded-lg">
           <h2 className="text-2xl font-bold font-headline">2. Delivery Details</h2>
           <div className="grid md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="097 123 4567" {...field} /></FormControl><FormMessage /></FormItem>)} />
           </div>
 

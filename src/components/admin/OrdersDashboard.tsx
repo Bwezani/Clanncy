@@ -44,13 +44,14 @@ import { cn } from '@/lib/utils';
 import { cva } from 'class-variance-authority';
 
 
-function OrderDetailsDialog({ order }: { order: AdminOrder }) {
+function OrderDetailsDialog({ order, isCardVersion = false }: { order: AdminOrder, isCardVersion?: boolean }) {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                    <Info className="mr-2 h-4 w-4" />
-                    Details
+                <Button variant={isCardVersion ? "ghost" : "outline"} size={isCardVersion ? "icon" : "sm"}>
+                    <Info className={cn(!isCardVersion && "mr-2", "h-4 w-4")} />
+                    {!isCardVersion && "Details"}
+                    <span className="sr-only">Order Details</span>
                 </Button>
             </DialogTrigger>
             <DialogContent>
@@ -93,7 +94,7 @@ function OrderDetailsDialog({ order }: { order: AdminOrder }) {
 function OrderActions({ order }: { order: AdminOrder }) {
     const { markAsDelivered, deleteOrder } = useAdmin();
     return (
-        <div className="flex justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
             <OrderDetailsDialog order={order} />
             {order.status !== 'Delivered' && (
                 <AlertDialog>
@@ -125,9 +126,9 @@ function OrderActions({ order }: { order: AdminOrder }) {
             )}
              <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="icon">
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Drop Order</span>
+                    <Button variant="destructive" size="sm">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Drop Order
                     </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -154,19 +155,86 @@ function OrderActions({ order }: { order: AdminOrder }) {
 
 
 function OrderCard({ order }: { order: AdminOrder }) {
+    const { markAsDelivered, deleteOrder } = useAdmin();
     return (
         <Card>
-            <CardHeader>
-                <CardTitle className="text-lg">{order.name}</CardTitle>
-                <CardDescription>{order.phone}</CardDescription>
+            <CardHeader className="flex flex-row justify-between items-start">
+                <div>
+                    <CardTitle className="text-lg">{order.name}</CardTitle>
+                    <CardDescription>{order.phone}</CardDescription>
+                </div>
+                <OrderDetailsDialog order={order} isCardVersion={true} />
             </CardHeader>
             <CardContent className="space-y-4">
-                <p><span className="font-semibold">Items:</span> {order.items}</p>
-                <p><span className="font-semibold">Status:</span> {order.status}</p>
+                 <div className="flex justify-between items-center">
+                    <div>
+                        <p className="font-semibold">Items:</p>
+                        <p>{order.items}</p>
+                    </div>
+                     <Badge variant={
+                        order.status === 'Delivered' ? 'outline' :
+                        order.status === 'Pending' ? 'secondary' :
+                        'default'
+                    } className={cn(order.status === 'Ready for Pickup' && 'bg-accent text-accent-foreground', "h-fit")}>
+                        {order.status}
+                    </Badge>
+                </div>
                 <p className="text-lg font-bold text-primary">K{order.price.toFixed(2)}</p>
             </CardContent>
-            <CardFooter>
-                 <OrderActions order={order} />
+            <CardFooter className="flex flex-wrap justify-end gap-2">
+                 {order.status !== 'Delivered' && (
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button size="sm" className="flex-1">
+                            <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Confirm Delivery</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will mark the order for <span className="font-bold">{order.name}</span> as delivered. This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                         <div className="space-y-2 rounded-lg border p-4">
+                            <p className="font-semibold">{order.items}</p>
+                            <p className="text-muted-foreground">{order.name} - {order.phone}</p>
+                            <p className="font-bold text-lg text-primary">K{order.price.toFixed(2)}</p>
+                        </div>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => markAsDelivered(order.id)}>
+                                Confirm
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="flex-1">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Drop Order
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Drop this order?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           This will permanently delete the order for <span className="font-bold">{order.name}</span>. This is for cancellations and cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={cn(buttonVariants({ variant: "destructive" }))}
+                            onClick={() => deleteOrder(order.id)}
+                        >
+                            Drop Order
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             </CardFooter>
         </Card>
     );
@@ -196,8 +264,18 @@ function OrderTable({ orders, showStatus }: { orders: AdminOrder[], showStatus?:
                             {order.deliveryLocationType === 'school' ? order.school : order.area}
                         </TableCell>
                         <TableCell>{order.items}</TableCell>
-                        {showStatus && <TableCell>{order.status}</TableCell>}
-                        <TableCell className="text-right">K{order.price.toFixed(2)}</TableCell>
+                        {showStatus && (
+                            <TableCell>
+                                <Badge variant={
+                                    order.status === 'Delivered' ? 'outline' :
+                                    order.status === 'Pending' ? 'secondary' :
+                                    'default'
+                                } className={cn(order.status === 'Ready for Pickup' && 'bg-accent text-accent-foreground')}>
+                                    {order.status}
+                                </Badge>
+                            </TableCell>
+                        )}
+                        <TableCell className="text-right font-mono">K{order.price.toFixed(2)}</TableCell>
                         <TableCell>
                             <OrderActions order={order} />
                         </TableCell>
@@ -216,6 +294,7 @@ export default function OrdersDashboard() {
   const [locationFilter, setLocationFilter] = useState('all');
 
   const openOrders = useMemo(() => orders.filter(o => o.status !== 'Delivered'), [orders]);
+  const allOrdersSorted = useMemo(() => [...orders].sort((a,b) => b.date.getTime() - a.date.getTime()), [orders]);
 
   const filteredOpenOrders = useMemo(() => {
     let filtered = openOrders;
@@ -240,8 +319,8 @@ export default function OrdersDashboard() {
   }, [openOrders, campusTypeFilter, locationFilter]);
   
   const handleCampusTypeChange = (value: string) => {
-    setCampusTypeFilter(value);
     setLocationFilter('all'); // Reset specific location filter when campus type changes
+    setCampusTypeFilter(value);
   };
 
   if (isLoading) {
@@ -328,15 +407,15 @@ export default function OrdersDashboard() {
                 <CardDescription>View all orders that have ever been placed.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                 {orders.length > 0 ? (
+                 {allOrdersSorted.length > 0 ? (
                     isMobile ? (
                         <div className="space-y-4">
-                            {orders.map(order => (
+                            {allOrdersSorted.map(order => (
                                 <OrderCard key={order.id} order={order} />
                             ))}
                         </div>
                     ) : (
-                        <OrderTable orders={orders} showStatus />
+                        <OrderTable orders={allOrdersSorted} showStatus />
                     )
                  ) : (
                     <p className="text-center text-muted-foreground py-8">No orders found.</p>
