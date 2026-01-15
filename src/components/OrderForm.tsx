@@ -124,6 +124,7 @@ export default function OrderForm() {
   const [nextDeliveryDate, setNextDeliveryDate] = useState<Date | null>(null);
   const [prices, setPrices] = useState<Prices>(defaultPrices);
   const [isLoadingPrices, setIsLoadingPrices] = useState(true);
+  const [isFirstSectionInteracted, setIsFirstSectionInteracted] = useState(false);
 
   useEffect(() => {
     // Attempt to load from localStorage first for faster initial load
@@ -221,6 +222,21 @@ export default function OrderForm() {
   const piecesType = form.watch('piecesType');
   const quantity = form.watch('quantity');
   const pieceDetails = form.watch('pieceDetails');
+  const deliveryLocationType = form.watch('deliveryLocationType');
+  const name = form.watch('name');
+  const phone = form.watch('phone');
+  const school = form.watch('school');
+  const block = form.watch('block');
+  const room = form.watch('room');
+  const area = form.watch('area');
+  const street = form.watch('street');
+  const houseNumber = form.watch('houseNumber');
+  
+  const isDeliverySectionComplete =
+    !!(name && phone &&
+    ((deliveryLocationType === 'school' && school && block && room) ||
+    (deliveryLocationType === 'off-campus' && area && street && houseNumber)));
+
 
   useEffect(() => {
     if (chickenType === 'whole') {
@@ -298,7 +314,17 @@ export default function OrderForm() {
             <Info className="h-5 w-5 text-accent" />
             <span>Note: All orders are pay on delivery.</span>
         </div>
-        <section className="space-y-4 border p-4 rounded-lg">
+        <section 
+          className={cn(
+            "space-y-4 border p-4 rounded-lg",
+            !isFirstSectionInteracted && 'animate-bounce-subtle'
+          )}
+          onClick={() => {
+            if (!isFirstSectionInteracted) {
+              setIsFirstSectionInteracted(true)
+            }
+          }}
+        >
           <h2 className="text-2xl font-bold font-headline">1. Choose Your Chicken</h2>
             <FormField
               control={form.control}
@@ -312,7 +338,7 @@ export default function OrderForm() {
                           form.setValue('quantity', 1);
                           form.setValue('piecesType', undefined);
                       } else {
-                          form.setValue('quantity', 1);
+                          form.setValue('quantity', 2); // Default to 2 for mixed
                           form.setValue('piecesType', 'mixed'); // Default to mixed
                           // If choose pieces is disabled, it should always be mixed
                           if (!prices.isChoosePiecesEnabled) {
@@ -428,7 +454,7 @@ export default function OrderForm() {
                           onValueChange={(value) => {
                             field.onChange(value);
                             if (value === 'mixed') {
-                              form.setValue('quantity', 1);
+                              form.setValue('quantity', 2);
                             } else {
                               form.setValue('quantity', 0);
                               form.setValue('pieceDetails', { breasts: 0, thighs: 0, drumsticks: 0, wings: 0 });
@@ -482,31 +508,38 @@ export default function OrderForm() {
                                     variant="outline"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => field.value > 1 && field.onChange(field.value - 1)}
-                                    disabled={field.value <= 1}
+                                    onClick={() => {
+                                        const currentVal = field.value;
+                                        if (currentVal === 5) {
+                                            field.onChange(2);
+                                        } else if (currentVal > 5) {
+                                            field.onChange(currentVal - 5);
+                                        }
+                                    }}
+                                    disabled={field.value <= 2}
                                 >
                                     <Minus className="h-4 w-4" />
                                 </Button>
                                 <Input
                                     {...field}
                                     type="number"
-                                    min="1"
+                                    min="2"
                                     className="w-16 text-center"
-                                     onChange={(e) => {
-                                        const value = parseInt(e.target.value, 10);
-                                        if (value > 0) {
-                                            field.onChange(value);
-                                        } else if (e.target.value === '') {
-                                            field.onChange(1);
-                                        }
-                                    }}
+                                    readOnly // To enforce button usage
                                 />
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => field.onChange(field.value + 1)}
+                                    onClick={() => {
+                                        const currentVal = field.value;
+                                        if (currentVal === 2) {
+                                            field.onChange(5);
+                                        } else {
+                                            field.onChange(currentVal + 5);
+                                        }
+                                    }}
                                 >
                                     <Plus className="h-4 w-4" />
                                 </Button>
@@ -542,7 +575,10 @@ export default function OrderForm() {
           </div>
         </section>
 
-        <section className="space-y-4 border p-4 rounded-lg">
+        <section className={cn(
+          "space-y-4 border p-4 rounded-lg",
+          isFirstSectionInteracted && !isDeliverySectionComplete && 'animate-bounce-subtle'
+        )}>
           <h2 className="text-2xl font-bold font-headline">2. Delivery Details</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -631,7 +667,15 @@ export default function OrderForm() {
 
         </section>
 
-        <Button type="submit" size="lg" className="w-full text-lg" disabled={isPending}>
+        <Button
+          type="submit"
+          size="lg"
+          className={cn(
+            "w-full text-lg",
+            isDeliverySectionComplete && "animate-bounce"
+          )}
+          disabled={isPending}
+        >
           {isPending && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
           Reserve Your Chicken
         </Button>
