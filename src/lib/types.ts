@@ -101,4 +101,5 @@ export interface ContactSettings {
 export interface HomepageSettings {
     title: string;
     subtitle: string;
+    isBounceAnimationEnabled?: boolean;
 }

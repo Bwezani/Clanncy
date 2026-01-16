@@ -31,7 +31,7 @@ import { useUser } from '@/hooks/use-user';
 import { Separator } from './ui/separator';
 import { doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import type { Prices } from '@/lib/types';
+import type { Prices, HomepageSettings } from '@/lib/types';
 
 
 const defaultPrices: Prices = {
@@ -124,6 +124,7 @@ export default function OrderForm() {
   const [nextDeliveryDate, setNextDeliveryDate] = useState<Date | null>(null);
   const [prices, setPrices] = useState<Prices>(defaultPrices);
   const [isLoadingPrices, setIsLoadingPrices] = useState(true);
+  const [isBounceAnimationEnabled, setIsBounceAnimationEnabled] = useState(true);
   const [isFirstSectionInteracted, setIsFirstSectionInteracted] = useState(false);
 
   useEffect(() => {
@@ -167,7 +168,7 @@ export default function OrderForm() {
 
     // Set up real-time listener for prices
     const pricesDocRef = doc(db, 'settings', 'pricing');
-    const unsubscribe = onSnapshot(pricesDocRef, (docSnap) => {
+    const unsubscribePrices = onSnapshot(pricesDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const fetchedPrices = docSnap.data() as Prices;
         // Ensure the feature flag has a default value if it's missing from Firestore
@@ -183,7 +184,24 @@ export default function OrderForm() {
       setIsLoadingPrices(false); // Stop loading even if there's an error
     });
 
-    return () => unsubscribe(); // Cleanup listener
+    // Set up real-time listener for homepage settings (for bounce animation toggle)
+    const homepageDocRef = doc(db, 'settings', 'homepage');
+    const unsubscribeHomepage = onSnapshot(homepageDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data() as HomepageSettings;
+            if (typeof data.isBounceAnimationEnabled === 'boolean') {
+                setIsBounceAnimationEnabled(data.isBounceAnimationEnabled);
+            } else {
+                setIsBounceAnimationEnabled(true); // Default to true if not set
+            }
+        }
+    });
+
+
+    return () => {
+        unsubscribePrices();
+        unsubscribeHomepage();
+    };
   }, []);
 
   const form = useForm<OrderInput>({
@@ -317,7 +335,7 @@ export default function OrderForm() {
         <section 
           className={cn(
             "space-y-4 border p-4 rounded-lg",
-            !isFirstSectionInteracted && 'animate-bounce-subtle'
+            isBounceAnimationEnabled && !isFirstSectionInteracted && 'animate-bounce-subtle'
           )}
           onClick={() => {
             if (!isFirstSectionInteracted) {
@@ -577,7 +595,7 @@ export default function OrderForm() {
 
         <section className={cn(
           "space-y-4 border p-4 rounded-lg",
-          isFirstSectionInteracted && !isDeliverySectionComplete && 'animate-bounce-subtle'
+          isBounceAnimationEnabled && isFirstSectionInteracted && !isDeliverySectionComplete && 'animate-bounce-subtle'
         )}>
           <h2 className="text-2xl font-bold font-headline">2. Delivery Details</h2>
           <div className="grid md:grid-cols-2 gap-4">
@@ -672,7 +690,7 @@ export default function OrderForm() {
           size="lg"
           className={cn(
             "w-full text-lg",
-            isDeliverySectionComplete && "animate-bounce"
+            isBounceAnimationEnabled && isDeliverySectionComplete && "animate-bounce"
           )}
           disabled={isPending}
         >

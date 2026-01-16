@@ -206,7 +206,7 @@ export default function SettingsDashboard() {
                 <CardTitle>Feature Settings</CardTitle>
                 <CardDescription>Enable or disable optional features.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
                         <Label htmlFor="choose-pieces-switch" className="text-base">Enable 'Choose Pieces' Option</Label>
@@ -218,6 +218,19 @@ export default function SettingsDashboard() {
                         id="choose-pieces-switch"
                         checked={prices.isChoosePiecesEnabled}
                         onCheckedChange={(checked) => setPrices({ ...prices, isChoosePiecesEnabled: checked })}
+                    />
+                </div>
+                 <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="bounce-animation-switch" className="text-base">Enable Form Bounce Animation</Label>
+                        <p className="text-sm text-muted-foreground">
+                            Animate form sections to guide the user.
+                        </p>
+                    </div>
+                    <Switch
+                        id="bounce-animation-switch"
+                        checked={homepage.isBounceAnimationEnabled ?? true}
+                        onCheckedChange={(checked) => setHomepage({ ...homepage, isBounceAnimationEnabled: checked })}
                     />
                 </div>
             </CardContent>

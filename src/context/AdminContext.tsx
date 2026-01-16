@@ -44,7 +44,8 @@ const defaultContact: ContactSettings = {
 
 const defaultHomepage: HomepageSettings = {
     title: 'The Best Chicken on Campus',
-    subtitle: 'Preorder now and pay when your chicken is delivered!'
+    subtitle: 'Preorder now and pay when your chicken is delivered!',
+    isBounceAnimationEnabled: true,
 }
 
 interface AdminContextType {
@@ -177,7 +178,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 const homepageDocRef = doc(db, 'settings', 'homepage');
                 const homepageDocSnap = await getDoc(homepageDocRef);
                 if (homepageDocSnap.exists()) {
-                    setHomepage(homepageDocSnap.data() as HomepageSettings);
+                    const fetchedHomepage = homepageDocSnap.data() as HomepageSettings;
+                    if (typeof fetchedHomepage.isBounceAnimationEnabled === 'undefined') {
+                        fetchedHomepage.isBounceAnimationEnabled = true; // Default to true
+                    }
+                    setHomepage(fetchedHomepage);
                 }
 
             } catch (error) {
