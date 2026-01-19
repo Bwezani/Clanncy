@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Info, Loader2, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Info, Loader2, Save, ShoppingCart, Smartphone, Trash2, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
@@ -84,6 +84,8 @@ export default function SettingsDashboard() {
     setContact,
     homepage,
     setHomepage,
+    goals,
+    setGoals,
     isSaving,
     isLoading,
     saveAllSettings,
@@ -232,6 +234,88 @@ export default function SettingsDashboard() {
                         checked={homepage.isBounceAnimationEnabled ?? true}
                         onCheckedChange={(checked) => setHomepage({ ...homepage, isBounceAnimationEnabled: checked })}
                     />
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Goal Settings</CardTitle>
+                <CardDescription>Set your targets for sales, reservations, and new devices for a specific period.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="goal-period">Goal Period</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button id="goal-period" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !goals.startDate && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {goals.startDate && goals.endDate ? (
+                                        <>
+                                        {format(goals.startDate, "LLL dd, y")} - {format(goals.endDate, "LLL dd, y")}
+                                        </>
+                                    ) : (
+                                        <span>Pick a date range</span>
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={goals.startDate}
+                                    selected={{ from: goals.startDate, to: goals.endDate }}
+                                    onSelect={(range) => setGoals({ ...goals, startDate: range?.from, endDate: range?.to })}
+                                    numberOfMonths={2}
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                </div>
+                <div className="grid md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="sales-target">Sales Target (K)</Label>
+                        <div className="relative">
+                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                id="sales-target"
+                                type="number"
+                                className="pl-10"
+                                value={goals.salesTarget}
+                                onChange={(e) => setGoals({ ...goals, salesTarget: parseFloat(e.target.value) || 0 })}
+                                min="0"
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="reservations-target">Reservations Target</Label>
+                        <div className="relative">
+                            <ShoppingCart className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                id="reservations-target"
+                                type="number"
+                                className="pl-10"
+                                value={goals.reservationsTarget}
+                                onChange={(e) => setGoals({ ...goals, reservationsTarget: parseInt(e.target.value, 10) || 0 })}
+                                min="0"
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="devices-target">New Devices Target</Label>
+                        <div className="relative">
+                            <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                id="devices-target"
+                                type="number"
+                                className="pl-10"
+                                value={goals.devicesTarget}
+                                onChange={(e) => setGoals({ ...goals, devicesTarget: parseInt(e.target.value, 10) || 0 })}
+                                min="0"
+                            />
+                        </div>
+                    </div>
                 </div>
             </CardContent>
         </Card>

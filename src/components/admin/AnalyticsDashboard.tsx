@@ -13,13 +13,14 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Loader2, Smartphone, ShoppingCart, DollarSign } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Smartphone, ShoppingCart, DollarSign, Target } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '../ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
 import { useAdmin } from '@/context/AdminContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Progress } from '@/components/ui/progress';
 
 
 const generateDateRange = (start: Date, end: Date) => {
@@ -27,7 +28,7 @@ const generateDateRange = (start: Date, end: Date) => {
 };
 
 export default function AnalyticsDashboard() {
-  const { orders, devices, isLoading } = useAdmin();
+  const { orders, devices, isLoading, goals } = useAdmin();
   const [date, setDate] = React.useState<DateRange | undefined>({
     from: subDays(new Date(), 29),
     to: new Date(),
@@ -43,6 +44,58 @@ export default function AnalyticsDashboard() {
 
     return { totalRevenue: total, thisMonthRevenue: monthly };
   }, [orders]);
+  
+  const {
+    currentSales,
+    currentReservations,
+    currentDevices,
+    salesProgress,
+    reservationsProgress,
+    devicesProgress,
+    isGoalsPeriodSet
+  } = useMemo(() => {
+    if (!goals.startDate || !goals.endDate) {
+        return { 
+            isGoalsPeriodSet: false,
+            currentSales: 0,
+            salesProgress: 0,
+            currentReservations: 0,
+            reservationsProgress: 0,
+            currentDevices: 0,
+            devicesProgress: 0,
+        };
+    }
+
+    const goalStartDate = goals.startDate;
+    const goalEndDate = goals.endDate;
+
+    const deliveredOrdersInPeriod = orders.filter(o =>
+        o.status === 'Delivered' &&
+        o.date >= goalStartDate &&
+        o.date <= goalEndDate
+    );
+    const sales = deliveredOrdersInPeriod.reduce((sum, order) => sum + order.price, 0);
+
+    const reservationsInPeriod = orders.filter(o =>
+        o.date >= goalStartDate &&
+        o.date <= goalEndDate
+    );
+
+    const devicesInPeriod = devices.filter(d =>
+        d.createdAt >= goalStartDate &&
+        d.createdAt <= goalEndDate
+    );
+    
+    return {
+        isGoalsPeriodSet: true,
+        currentSales: sales,
+        salesProgress: goals.salesTarget > 0 ? (sales / goals.salesTarget) * 100 : 0,
+        currentReservations: reservationsInPeriod.length,
+        reservationsProgress: goals.reservationsTarget > 0 ? (reservationsInPeriod.length / goals.reservationsTarget) * 100 : 0,
+        currentDevices: devicesInPeriod.length,
+        devicesProgress: goals.devicesTarget > 0 ? (devicesInPeriod.length / goals.devicesTarget) * 100 : 0,
+    }
+  }, [goals, orders, devices]);
 
 
   const filteredOrders = useMemo(() => {
@@ -110,6 +163,55 @@ export default function AnalyticsDashboard() {
 
   return (
     <div className="space-y-8">
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Target className="h-6 w-6" />
+                    Goal Progress
+                </CardTitle>
+                {isGoalsPeriodSet && goals.startDate && goals.endDate ? (
+                    <CardDescription>
+                        Progress towards your goals for the period: {format(goals.startDate, "do MMM")} - {format(goals.endDate, "do MMM, yyyy")}.
+                    </CardDescription>
+                ) : (
+                    <CardDescription>
+                        Set a goal period in the settings to track your progress.
+                    </CardDescription>
+                )}
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {isGoalsPeriodSet ? (
+                    <>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm font-medium">
+                                <span>Sales</span>
+                                <span>K{currentSales.toFixed(2)} / K{goals.salesTarget.toFixed(2)}</span>
+                            </div>
+                            <Progress value={salesProgress} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm font-medium">
+                                <span>Reservations</span>
+                                <span>{currentReservations} / {goals.reservationsTarget}</span>
+                            </div>
+                            <Progress value={reservationsProgress} />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm font-medium">
+                                <span>New Devices</span>
+                                <span>{currentDevices} / {goals.devicesTarget}</span>
+                            </div>
+                            <Progress value={devicesProgress} />
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-center text-muted-foreground py-8">
+                        No goal period set.
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -312,5 +414,3 @@ export default function AnalyticsDashboard() {
     </div>
   );
 }
-
-    

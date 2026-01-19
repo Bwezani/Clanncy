@@ -6,7 +6,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
-import type { Order, FirestoreOrder, Device, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice } from '@/lib/types';
+import type { Order, FirestoreOrder, Device, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings } from '@/lib/types';
 
 function formatOrderItems(order: FirestoreOrder): string {
     const quantity = order.quantity;
@@ -48,6 +48,14 @@ const defaultHomepage: HomepageSettings = {
     isBounceAnimationEnabled: true,
 }
 
+const defaultGoals: GoalsSettings = {
+    salesTarget: 10000,
+    reservationsTarget: 100,
+    devicesTarget: 200,
+    startDate: undefined,
+    endDate: undefined,
+}
+
 interface AdminContextType {
     orders: AdminOrder[];
     devices: AdminDevice[];
@@ -62,6 +70,8 @@ interface AdminContextType {
     setContact: (contact: ContactSettings) => void;
     homepage: HomepageSettings;
     setHomepage: (homepage: HomepageSettings) => void;
+    goals: GoalsSettings;
+    setGoals: (goals: GoalsSettings) => void;
     isLoading: boolean;
     isSaving: boolean;
     saveAllSettings: () => void;
@@ -76,6 +86,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [prices, setPrices] = useState<Prices>(defaultPrices);
     const [contact, setContact] = useState<ContactSettings>(defaultContact);
     const [homepage, setHomepage] = useState<HomepageSettings>(defaultHomepage);
+    const [goals, setGoals] = useState<GoalsSettings>(defaultGoals);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
@@ -184,6 +195,28 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                     }
                     setHomepage(fetchedHomepage);
                 }
+                
+                // Fetch Goals
+                const goalsDocRef = doc(db, 'settings', 'goals');
+                const goalsDocSnap = await getDoc(goalsDocRef);
+                if (goalsDocSnap.exists()) {
+                    const data = goalsDocSnap.data() as {
+                        salesTarget: number;
+                        reservationsTarget: number;
+                        devicesTarget: number;
+                        startDate?: Timestamp;
+                        endDate?: Timestamp;
+                    };
+                    const fetchedGoals: GoalsSettings = {
+                        salesTarget: data.salesTarget || 0,
+                        reservationsTarget: data.reservationsTarget || 0,
+                        devicesTarget: data.devicesTarget || 0,
+                        startDate: data.startDate?.toDate(),
+                        endDate: data.endDate?.toDate(),
+                    };
+                    setGoals(fetchedGoals);
+                }
+
 
             } catch (error) {
                  toast({
@@ -292,6 +325,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             const homepageDocRef = doc(db, 'settings', 'homepage');
             await setDoc(homepageDocRef, homepage, { merge: true });
 
+            // Save goal settings
+            const goalsDocRef = doc(db, 'settings', 'goals');
+            const goalsToSave: any = { ...goals };
+            if (goals.startDate) {
+                goalsToSave.startDate = Timestamp.fromDate(goals.startDate);
+            }
+            if (goals.endDate) {
+                goalsToSave.endDate = Timestamp.fromDate(goals.endDate);
+            }
+            await setDoc(goalsDocRef, goalsToSave, { merge: true });
+
 
             toast({
                 title: 'Success!',
@@ -326,6 +370,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setContact,
             homepage,
             setHomepage,
+            goals,
+            setGoals,
             isLoading,
             isSaving,
             saveAllSettings,

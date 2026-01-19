@@ -103,3 +103,11 @@ export interface HomepageSettings {
     subtitle: string;
     isBounceAnimationEnabled?: boolean;
 }
+
+export interface GoalsSettings {
+    salesTarget: number;
+    reservationsTarget: number;
+    devicesTarget: number;
+    startDate?: Date;
+    endDate?: Date;
+}
