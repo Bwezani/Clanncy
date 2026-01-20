@@ -5,8 +5,8 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
-import type { Order, FirestoreOrder, Device, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings } from '@/lib/types';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs, where, runTransaction, increment } from 'firebase/firestore';
+import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings } from '@/lib/types';
 
 function formatOrderItems(order: FirestoreOrder): string {
     const quantity = order.quantity;
@@ -48,10 +48,19 @@ const defaultHomepage: HomepageSettings = {
     isBounceAnimationEnabled: true,
 }
 
+const defaultDelivery: DeliverySettings = {
+    totalSlots: 50,
+    disableWhenSlotsFull: true,
+    slotsFullMessage: "We're fully booked! Check back later.",
+    nextDeliveryDate: undefined,
+    isSlotsEnabled: true,
+};
+
+
 const defaultGoals: GoalsSettings = {
-    salesTarget: 10000,
-    reservationsTarget: 100,
-    devicesTarget: 200,
+    salesTarget: 0,
+    reservationsTarget: 0,
+    devicesTarget: 0,
     startDate: undefined,
     endDate: undefined,
 }
@@ -62,8 +71,9 @@ interface AdminContextType {
     markAsDelivered: (orderId: string) => void;
     deleteOrder: (orderId: string) => void;
     clearAllOrders: () => void;
-    nextDeliveryDate: Date | undefined;
-    setNextDeliveryDate: (date: Date | undefined) => void;
+    resetSlots: () => void;
+    deliverySettings: DeliverySettings;
+    setDeliverySettings: (settings: DeliverySettings) => void;
     prices: Prices;
     setPrices: (prices: Prices) => void;
     contact: ContactSettings;
@@ -72,6 +82,7 @@ interface AdminContextType {
     setHomepage: (homepage: HomepageSettings) => void;
     goals: GoalsSettings;
     setGoals: (goals: GoalsSettings) => void;
+    clearGoals: () => void;
     isLoading: boolean;
     isSaving: boolean;
     saveAllSettings: () => void;
@@ -82,7 +93,7 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [orders, setOrders] = useState<AdminOrder[]>([]);
     const [devices, setDevices] = useState<AdminDevice[]>([]);
-    const [nextDeliveryDate, setNextDeliveryDate] = useState<Date | undefined>();
+    const [deliverySettings, setDeliverySettings] = useState<DeliverySettings>(defaultDelivery);
     const [prices, setPrices] = useState<Prices>(defaultPrices);
     const [contact, setContact] = useState<ContactSettings>(defaultContact);
     const [homepage, setHomepage] = useState<HomepageSettings>(defaultHomepage);
@@ -157,14 +168,20 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
         const fetchSettings = async () => {
             try {
-                // Fetch Delivery Date
+                // Fetch Delivery Settings
                 const deliveryDocRef = doc(db, 'settings', 'delivery');
                 const deliveryDocSnap = await getDoc(deliveryDocRef);
                 if (deliveryDocSnap.exists()) {
                     const data = deliveryDocSnap.data();
-                    if (data.nextDeliveryDate && data.nextDeliveryDate instanceof Timestamp) {
-                       setNextDeliveryDate(data.nextDeliveryDate.toDate());
-                    }
+                    setDeliverySettings({
+                        nextDeliveryDate: data.nextDeliveryDate?.toDate(),
+                        totalSlots: data.totalSlots ?? defaultDelivery.totalSlots,
+                        disableWhenSlotsFull: data.disableWhenSlotsFull ?? defaultDelivery.disableWhenSlotsFull,
+                        slotsFullMessage: data.slotsFullMessage ?? defaultDelivery.slotsFullMessage,
+                        isSlotsEnabled: typeof data.isSlotsEnabled === 'boolean' ? data.isSlotsEnabled : defaultDelivery.isSlotsEnabled,
+                    });
+                } else {
+                    setDeliverySettings(defaultDelivery);
                 }
 
                 // Fetch Prices
@@ -215,6 +232,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                         endDate: data.endDate?.toDate(),
                     };
                     setGoals(fetchedGoals);
+                } else {
+                    setGoals(defaultGoals);
                 }
 
 
@@ -238,8 +257,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     const markAsDelivered = async (orderId: string) => {
         const orderDocRef = doc(db, 'orders', orderId);
+        const slotsCounterRef = doc(db, 'slots', 'live_counter');
         try {
-            await updateDoc(orderDocRef, { status: 'Delivered' });
+            await runTransaction(db, async (transaction) => {
+                const orderDoc = await transaction.get(orderDocRef);
+                if (!orderDoc.exists() || orderDoc.data().status === 'Delivered') {
+                    // If order doesn't exist or is already delivered, do nothing.
+                    return;
+                }
+
+                // Mark order as delivered
+                transaction.update(orderDocRef, { status: 'Delivered' });
+
+                // Decrement taken slots if the order was pending/ready
+                if (['Pending', 'Ready for Pickup'].includes(orderDoc.data().status)) {
+                    transaction.update(slotsCounterRef, { count: increment(-1) });
+                }
+            });
             toast({
                 title: "Order Updated",
                 description: `Order ${orderId} has been marked as delivered.`
@@ -255,8 +289,22 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     
     const deleteOrder = async (orderId: string) => {
         const orderDocRef = doc(db, 'orders', orderId);
+        const slotsCounterRef = doc(db, 'slots', 'live_counter');
         try {
-            await deleteDoc(orderDocRef);
+            await runTransaction(db, async (transaction) => {
+                const orderDoc = await transaction.get(orderDocRef);
+                if (!orderDoc.exists()) {
+                    return; // Order already deleted
+                }
+
+                // Delete the order
+                transaction.delete(orderDocRef);
+
+                // Decrement taken slots if the order was pending/ready
+                if (['Pending', 'Ready for Pickup'].includes(orderDoc.data().status)) {
+                    transaction.update(slotsCounterRef, { count: increment(-1) });
+                }
+            });
             toast({
                 title: "Order Dropped",
                 description: `Order ${orderId} has been successfully deleted.`
@@ -280,12 +328,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             querySnapshot.forEach((doc) => {
                 batch.delete(doc.ref);
             });
+
+            // Also reset the slot counter
+            const slotsCounterRef = doc(db, 'slots', 'live_counter');
+            batch.set(slotsCounterRef, { count: 0 });
             
             await batch.commit();
 
             toast({
                 title: "Success",
-                description: "All order data has been cleared."
+                description: "All order data has been cleared and slots have been reset."
             });
         } catch (error) {
             console.error("Error clearing orders:", error);
@@ -299,18 +351,43 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const resetSlots = async () => {
+        setIsSaving(true);
+        const slotsCounterRef = doc(db, 'slots', 'live_counter');
+        try {
+            await setDoc(slotsCounterRef, { count: 0 });
+            toast({
+                title: "Success",
+                description: "Slot count has been reset to 0."
+            });
+        } catch (error) {
+            console.error("Error resetting slots:", error);
+            toast({
+                variant: 'destructive',
+                title: "Reset Failed",
+                description: "Could not reset the slot count."
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const saveAllSettings = async () => {
         setIsSaving(true);
         try {
-            // Save delivery date
+            // Save delivery settings
             const deliveryDocRef = doc(db, 'settings', 'delivery');
-            if (nextDeliveryDate) {
-                await setDoc(deliveryDocRef, { nextDeliveryDate });
-                localStorage.setItem('nextDeliveryDate', nextDeliveryDate.toISOString());
+            const deliveryDataToSave = {
+                ...deliverySettings,
+                nextDeliveryDate: deliverySettings.nextDeliveryDate ? Timestamp.fromDate(deliverySettings.nextDeliveryDate) : null,
+            };
+            await setDoc(deliveryDocRef, deliveryDataToSave, { merge: true });
+            if (deliverySettings.nextDeliveryDate) {
+                localStorage.setItem('nextDeliveryDate', deliverySettings.nextDeliveryDate.toISOString());
             } else {
-                await setDoc(deliveryDocRef, { nextDeliveryDate: null });
-                localStorage.removeItem('nextDeliveryDate');
+                 localStorage.removeItem('nextDeliveryDate');
             }
+
 
             // Save prices
             const pricesDocRef = doc(db, 'settings', 'pricing');
@@ -327,13 +404,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
             // Save goal settings
             const goalsDocRef = doc(db, 'settings', 'goals');
-            const goalsToSave: any = { ...goals };
-            if (goals.startDate) {
-                goalsToSave.startDate = Timestamp.fromDate(goals.startDate);
-            }
-            if (goals.endDate) {
-                goalsToSave.endDate = Timestamp.fromDate(goals.endDate);
-            }
+            const goalsToSave = {
+                salesTarget: goals.salesTarget,
+                reservationsTarget: goals.reservationsTarget,
+                devicesTarget: goals.devicesTarget,
+                startDate: goals.startDate ? Timestamp.fromDate(goals.startDate) : null,
+                endDate: goals.endDate ? Timestamp.fromDate(goals.endDate) : null,
+            };
             await setDoc(goalsDocRef, goalsToSave, { merge: true });
 
 
@@ -347,12 +424,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             toast({
                 variant: 'destructive',
                 title: 'Save Failed',
-                description: 'Could not save all settings.',
+                description: `Could not save all settings. ${error instanceof Error ? error.message : ''}`.trim(),
             });
         } finally {
             setIsSaving(false);
         }
     }
+    
+    const clearGoals = () => {
+        setGoals(defaultGoals);
+    };
 
 
     return (
@@ -362,8 +443,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             markAsDelivered, 
             deleteOrder,
             clearAllOrders,
-            nextDeliveryDate, 
-            setNextDeliveryDate,
+            resetSlots,
+            deliverySettings,
+            setDeliverySettings,
             prices,
             setPrices,
             contact,
@@ -372,6 +454,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setHomepage,
             goals,
             setGoals,
+            clearGoals,
             isLoading,
             isSaving,
             saveAllSettings,

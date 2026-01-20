@@ -4,7 +4,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Home, School, Minus, Plus, Info, CalendarClock, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Home, School, Minus, Plus, Info, CalendarClock, ChevronsUpDown, Ticket } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ import { useUser } from '@/hooks/use-user';
 import { Separator } from './ui/separator';
 import { doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import type { Prices, HomepageSettings } from '@/lib/types';
+import type { Prices, HomepageSettings, DeliverySettings } from '@/lib/types';
 
 
 const defaultPrices: Prices = {
@@ -121,37 +121,58 @@ export default function OrderForm() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const { user } = useUser();
-  const [nextDeliveryDate, setNextDeliveryDate] = useState<Date | null>(null);
   const [prices, setPrices] = useState<Prices>(defaultPrices);
   const [isLoadingPrices, setIsLoadingPrices] = useState(true);
   const [isBounceAnimationEnabled, setIsBounceAnimationEnabled] = useState(true);
   const [isFirstSectionInteracted, setIsFirstSectionInteracted] = useState(false);
+  
+  const [takenSlots, setTakenSlots] = useState(0);
+  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
+  // Listeners for settings
   useEffect(() => {
-    // Attempt to load from localStorage first for faster initial load
-    const storedDate = localStorage.getItem('nextDeliveryDate');
-    if (storedDate) {
-      setNextDeliveryDate(new Date(storedDate));
-    }
-
-    // Set up a real-time listener for the delivery date
-    const deliveryDocRef = doc(db, 'settings', 'delivery');
-    const unsubscribe = onSnapshot(deliveryDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.nextDeliveryDate && data.nextDeliveryDate instanceof Timestamp) {
-          const newDate = data.nextDeliveryDate.toDate();
-          setNextDeliveryDate(newDate);
-          localStorage.setItem('nextDeliveryDate', newDate.toISOString());
-        } else {
-            setNextDeliveryDate(null);
-            localStorage.removeItem('nextDeliveryDate');
+    const settingsRef = doc(db, 'settings', 'delivery');
+    const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const newSettings: DeliverySettings = {
+                totalSlots: data.totalSlots ?? 0,
+                disableWhenSlotsFull: data.disableWhenSlotsFull ?? true,
+                slotsFullMessage: data.slotsFullMessage ?? "We're fully booked for now!",
+                isSlotsEnabled: typeof data.isSlotsEnabled === 'boolean' ? data.isSlotsEnabled : true,
+                nextDeliveryDate: data.nextDeliveryDate?.toDate()
+            };
+            setDeliverySettings(newSettings);
+            if (newSettings.nextDeliveryDate) {
+                localStorage.setItem('nextDeliveryDate', newSettings.nextDeliveryDate.toISOString());
+            } else {
+                localStorage.removeItem('nextDeliveryDate');
+            }
         }
-      }
+        setIsLoadingSettings(false);
+    }, (error) => {
+        console.error("Error fetching delivery settings: ", error);
+        setIsLoadingSettings(false);
     });
 
-    return () => unsubscribe(); // Cleanup listener on component unmount
+    const slotsCounterRef = doc(db, 'slots', 'live_counter');
+    const unsubscribeSlots = onSnapshot(slotsCounterRef, (docSnap) => {
+        if (docSnap.exists()) {
+            setTakenSlots(docSnap.data().count ?? 0);
+        } else {
+            setTakenSlots(0);
+        }
+    }, (error) => {
+        console.error("Error fetching slots counter: ", error);
+    });
+
+    return () => {
+        unsubscribeSettings();
+        unsubscribeSlots();
+    };
   }, []);
+
 
   useEffect(() => {
     // Attempt to load from localStorage first for faster initial load
@@ -255,6 +276,9 @@ export default function OrderForm() {
     ((deliveryLocationType === 'school' && school && block && room) ||
     (deliveryLocationType === 'off-campus' && area && street && houseNumber)));
 
+  const slotsLeft = deliverySettings ? deliverySettings.totalSlots - takenSlots : 0;
+  const areSlotsFull = deliverySettings?.isSlotsEnabled && slotsLeft <= 0;
+
 
   useEffect(() => {
     if (chickenType === 'whole') {
@@ -317,7 +341,7 @@ export default function OrderForm() {
     form.setValue('pieceDetails', pieces, { shouldValidate: true, shouldDirty: true });
   }
 
-  if (isLoadingPrices) {
+  if (isLoadingPrices || isLoadingSettings) {
       return (
           <div className="flex justify-center items-center h-96">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -685,25 +709,46 @@ export default function OrderForm() {
 
         </section>
 
-        <Button
-          type="submit"
-          size="lg"
-          className={cn(
-            "w-full text-lg",
-            isBounceAnimationEnabled && isDeliverySectionComplete && "animate-bounce"
-          )}
-          disabled={isPending}
-        >
-          {isPending && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-          Reserve Your Chicken
-        </Button>
+        <div className="space-y-4">
+            <Button
+              type="submit"
+              size="lg"
+              className={cn(
+                "w-full text-lg",
+                isBounceAnimationEnabled && isDeliverySectionComplete && "animate-bounce"
+              )}
+              disabled={isPending || (areSlotsFull && deliverySettings?.disableWhenSlotsFull)}
+            >
+              {isPending ? (
+                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (areSlotsFull && deliverySettings?.disableWhenSlotsFull) ? (
+                deliverySettings.slotsFullMessage
+              ) : (
+                'Reserve Your Chicken'
+              )}
+            </Button>
 
-        {nextDeliveryDate && (
-             <div className="flex items-center justify-center gap-2 rounded-md bg-secondary border border-secondary/80 p-3 text-sm text-secondary-foreground mt-4">
-                <CalendarClock className="h-5 w-5" />
-                <span>Next Deliveries on <b>{format(nextDeliveryDate, "do MMMM, yyyy")}</b></span>
-            </div>
-        )}
+            {deliverySettings?.isSlotsEnabled && !isLoadingSettings && deliverySettings.totalSlots > 0 && (
+                <div className="flex items-center justify-center gap-2 rounded-md bg-secondary border border-secondary/80 p-3 text-sm text-secondary-foreground">
+                    <Ticket className="h-5 w-5" />
+                    <span
+                        className={cn(
+                            "font-medium",
+                            slotsLeft <= 10 && slotsLeft > 0 && "animate-pulse text-destructive font-bold"
+                        )}
+                    >
+                        {slotsLeft > 0 ? `${slotsLeft} slots left` : "No slots left!"}
+                    </span>
+                </div>
+            )}
+
+            {deliverySettings?.nextDeliveryDate && (
+                <div className="flex items-center justify-center gap-2 rounded-md bg-secondary border border-secondary/80 p-3 text-sm text-secondary-foreground">
+                    <CalendarClock className="h-5 w-5" />
+                    <span>Next Deliveries on <b>{format(deliverySettings.nextDeliveryDate, "do MMMM, yyyy")}</b></span>
+                </div>
+            )}
+        </div>
       </form>
     </Form>
   );

@@ -104,6 +104,14 @@ export interface HomepageSettings {
     isBounceAnimationEnabled?: boolean;
 }
 
+export interface DeliverySettings {
+    nextDeliveryDate?: Date;
+    totalSlots: number;
+    disableWhenSlotsFull: boolean;
+    slotsFullMessage: string;
+    isSlotsEnabled: boolean;
+}
+
 export interface GoalsSettings {
     salesTarget: number;
     reservationsTarget: number;

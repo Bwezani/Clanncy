@@ -20,16 +20,16 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 function DangerZone() {
     const { clearAllOrders, isSaving } = useAdmin();
-    const [confirmationCode, setConfirmationCode] = useState('');
+    const [allOrdersCode, setAllOrdersCode] = useState('');
     const requiredCode = '0305';
 
     return (
         <Card className="border-destructive">
             <CardHeader>
                 <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                <CardDescription>These actions are irreversible. Please proceed with caution.</CardDescription>
+                <CardDescription>This action is irreversible. Please proceed with caution.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
                         <Button variant="destructive">
@@ -44,27 +44,27 @@ function DangerZone() {
                                 Are you absolutely sure?
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete all order data from your database.
+                                This action cannot be undone. This will permanently delete ALL order data from your database and reset the slot counter.
                                 To confirm, please type the confirmation code in the box below.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <Input
                             type="text"
                             placeholder="Confirmation code"
-                            value={confirmationCode}
-                            onChange={(e) => setConfirmationCode(e.target.value)}
+                            value={allOrdersCode}
+                            onChange={(e) => setAllOrdersCode(e.target.value)}
                         />
                         <AlertDialogFooter>
-                            <AlertDialogCancel onClick={() => setConfirmationCode('')}>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel onClick={() => setAllOrdersCode('')}>Cancel</AlertDialogCancel>
                             <AlertDialogAction
                                 onClick={() => {
                                     clearAllOrders();
-                                    setConfirmationCode('');
+                                    setAllOrdersCode('');
                                 }}
-                                disabled={confirmationCode !== requiredCode || isSaving}
+                                disabled={allOrdersCode !== requiredCode || isSaving}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                I understand, clear all orders
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "I understand, clear all orders"}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -76,8 +76,8 @@ function DangerZone() {
 
 export default function SettingsDashboard() {
   const { 
-    nextDeliveryDate, 
-    setNextDeliveryDate,
+    deliverySettings,
+    setDeliverySettings,
     prices,
     setPrices,
     contact,
@@ -86,10 +86,15 @@ export default function SettingsDashboard() {
     setHomepage,
     goals,
     setGoals,
+    clearGoals,
+    resetSlots,
     isSaving,
     isLoading,
     saveAllSettings,
   } = useAdmin();
+
+  const [resetSlotsCode, setResetSlotsCode] = useState('');
+  const requiredCode = '0305';
 
   if (isLoading) {
     return (
@@ -103,44 +108,142 @@ export default function SettingsDashboard() {
     <div className="space-y-8">
         <Card>
             <CardHeader>
-                <CardTitle>Delivery Settings</CardTitle>
-                <CardDescription>Manage your delivery schedule.</CardDescription>
+                <CardTitle>Delivery & Slot Settings</CardTitle>
+                <CardDescription>Manage your delivery schedule and order capacity.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="delivery-date">Next Delivery Date</Label>
-                        <Popover>
-                        <PopoverTrigger asChild>
-                        <Button
-                            id="delivery-date"
-                            variant={"outline"}
-                            className={cn(
-                            "w-[300px] justify-start text-left font-normal",
-                            !nextDeliveryDate && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {nextDeliveryDate ? (
-                                format(nextDeliveryDate, "PPP")
-                            ) : (
-                            <span>Pick a date</span>
-                            )}
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                            mode="single"
-                            selected={nextDeliveryDate}
-                            onSelect={(date) => setNextDeliveryDate(date || undefined)}
-                            initialFocus
-                        />
-                        </PopoverContent>
-                    </Popover>
+            <CardContent className="space-y-6">
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="enable-slots-switch" className="text-base">Enable Slot Management</Label>
+                        <p className="text-sm text-muted-foreground">
+                            Track and limit the number of available order slots.
+                        </p>
+                    </div>
+                    <Switch
+                        id="enable-slots-switch"
+                        checked={deliverySettings.isSlotsEnabled ?? true}
+                        onCheckedChange={(checked) => setDeliverySettings({ ...deliverySettings, isSlotsEnabled: checked })}
+                    />
                 </div>
-                    <div className="flex items-center gap-2 rounded-md bg-secondary/50 border border-secondary/80 p-3 text-sm text-secondary-foreground">
-                    <Info className="h-5 w-5 text-secondary-foreground/80" />
-                    <span>This date will be displayed to customers on the ordering page.</span>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="delivery-date">Next Delivery Date</Label>
+                            <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                id="delivery-date"
+                                variant={"outline"}
+                                className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !deliverySettings.nextDeliveryDate && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {deliverySettings.nextDeliveryDate ? (
+                                    format(deliverySettings.nextDeliveryDate, "PPP")
+                                ) : (
+                                <span>Pick a date</span>
+                                )}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={deliverySettings.nextDeliveryDate}
+                                onSelect={(date) => setDeliverySettings({...deliverySettings, nextDeliveryDate: date || undefined})}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    {deliverySettings.isSlotsEnabled && (
+                        <div className="space-y-2">
+                            <Label htmlFor="total-slots">Total Slots Available</Label>
+                            <Input
+                                id="total-slots"
+                                type="number"
+                                value={deliverySettings.totalSlots}
+                                onChange={(e) => setDeliverySettings({ ...deliverySettings, totalSlots: parseInt(e.target.value, 10) || 0 })}
+                                min="0"
+                            />
+                        </div>
+                    )}
                 </div>
+
+                {deliverySettings.isSlotsEnabled && (
+                    <div className="space-y-6">
+                        <div className="space-y-4 rounded-lg border p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="disable-ordering-switch" className="text-base">Disable Ordering When Slots Are Full</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Prevent new orders when all slots are taken.
+                                    </p>
+                                </div>
+                                <Switch
+                                    id="disable-ordering-switch"
+                                    checked={deliverySettings.disableWhenSlotsFull}
+                                    onCheckedChange={(checked) => setDeliverySettings({ ...deliverySettings, disableWhenSlotsFull: checked })}
+                                />
+                            </div>
+                            {deliverySettings.disableWhenSlotsFull && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="slots-full-message">"Slots Full" Message</Label>
+                                    <Textarea
+                                        id="slots-full-message"
+                                        placeholder="We're fully booked! Please check back later."
+                                        value={deliverySettings.slotsFullMessage}
+                                        onChange={(e) => setDeliverySettings({ ...deliverySettings, slotsFullMessage: e.target.value })}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex items-center justify-between rounded-lg border border-dashed p-4">
+                             <div>
+                                <h3 className="font-semibold">Reset Slots Count</h3>
+                                <p className="text-sm text-muted-foreground">Sets the taken slots counter back to 0 for a new day.</p>
+                             </div>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline">
+                                        Reset Count
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle className="flex items-center gap-2">
+                                            <AlertTriangle className="h-6 w-6 text-amber-500" />
+                                            Reset Slot Counter?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                        This will set the live slot counter back to 0. This is useful for starting a new delivery day and does not delete any existing orders. To confirm, type the code below.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <Input
+                                        type="text"
+                                        placeholder="Confirmation code"
+                                        value={resetSlotsCode}
+                                        onChange={(e) => setResetSlotsCode(e.target.value)}
+                                    />
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel onClick={() => setResetSlotsCode('')}>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={() => {
+                                                resetSlots();
+                                                setResetSlotsCode('');
+                                            }}
+                                            disabled={resetSlotsCode !== requiredCode || isSaving}
+                                        >
+                                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Confirm Reset'}
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
 
@@ -240,8 +343,34 @@ export default function SettingsDashboard() {
 
         <Card>
             <CardHeader>
-                <CardTitle>Goal Settings</CardTitle>
-                <CardDescription>Set your targets for sales, reservations, and new devices for a specific period.</CardDescription>
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <CardTitle>Goal Settings</CardTitle>
+                        <CardDescription>Set your targets for sales, reservations, and new devices for a specific period.</CardDescription>
+                    </div>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                                <span className="sr-only">Clear Goals</span>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will clear the current goal settings in the form. You will still need to click "Save All Settings" to make this change permanent.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={clearGoals}>
+                                    Clear
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid md:grid-cols-2 gap-4">

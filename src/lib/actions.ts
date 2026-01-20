@@ -1,9 +1,9 @@
+
 'use server';
 
 import { orderSchema, type OrderInput } from '@/lib/schema';
 import { db } from './firebase/config';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { collection, doc, serverTimestamp, runTransaction, increment } from 'firebase/firestore';
 
 export async function submitOrder(data: OrderInput & { userId?: string }) {
   const validation = orderSchema.safeParse(data);
@@ -14,18 +14,51 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
   }
   
   try {
-    const orderData: any = {
-      ...validation.data,
-      createdAt: serverTimestamp(),
-      status: 'Pending',
-    };
+    const deliverySettingsRef = doc(db, "settings", "delivery");
+    const slotsCounterRef = doc(db, "slots", "live_counter");
 
-    // If a userId is provided (meaning user is logged in), add it to the order
-    if (data.userId) {
-      orderData.userId = data.userId;
-    }
+    await runTransaction(db, async (transaction) => {
+        const deliverySettingsDoc = await transaction.get(deliverySettingsRef);
+        if (!deliverySettingsDoc.exists()) {
+            throw new Error("Delivery settings not found.");
+        }
 
-    await addDoc(collection(db, 'orders'), orderData);
+        const settings = deliverySettingsDoc.data();
+        const isSlotsEnabled = settings.isSlotsEnabled ?? true;
+
+        let slotsCounterDoc;
+        if (isSlotsEnabled) {
+            slotsCounterDoc = await transaction.get(slotsCounterRef);
+            const totalSlots = settings.totalSlots ?? 0;
+            const takenSlots = slotsCounterDoc.exists() ? slotsCounterDoc.data().count : 0;
+            const disableWhenFull = settings.disableWhenSlotsFull ?? true;
+            if (disableWhenFull && takenSlots >= totalSlots) {
+                throw new Error(settings.slotsFullMessage || "We're fully booked! Please check back later.");
+            }
+        }
+
+        // If we are here, a slot is available or slots are not enabled.
+        const newOrderRef = doc(collection(db, "orders"));
+        const orderData: any = {
+            ...validation.data,
+            createdAt: serverTimestamp(),
+            status: 'Pending',
+        };
+        if (data.userId) {
+            orderData.userId = data.userId;
+        }
+
+        transaction.set(newOrderRef, orderData);
+
+        // Increment taken slots if enabled
+        if (isSlotsEnabled) {
+            if (slotsCounterDoc && slotsCounterDoc.exists()) {
+                transaction.update(slotsCounterRef, { count: increment(1) });
+            } else {
+                transaction.set(slotsCounterRef, { count: 1 });
+            }
+        }
+    });
     
     console.log('New Order Submitted:', validation.data);
     return { success: true, message: 'Your order has been placed successfully!' };
