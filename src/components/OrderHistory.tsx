@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase/config';
 import type { Order as OrderType } from '@/lib/types';
@@ -144,76 +144,71 @@ export function OrderHistory() {
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useUser();
-  const [deviceId, setDeviceId] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect runs once to get the deviceId from localStorage.
-    const storedDeviceId = localStorage.getItem('deviceId');
-    if (storedDeviceId) {
-        setDeviceId(storedDeviceId);
-    } else {
-        // If there's no deviceId and no user, we can stop loading.
-        if (!user) setIsLoading(false);
+    const deviceId = localStorage.getItem('deviceId');
+
+    if (!user && !deviceId) {
+      setOrders([]);
+      setIsLoading(false);
+      return;
     }
-  }, [user]);
 
+    setIsLoading(true);
+    const orderColl = collection(db, 'orders');
+    
+    let userListener: (() => void) | null = null;
+    let deviceListener: (() => void) | null = null;
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setIsLoading(true);
-      
-      if (!user && !deviceId) {
-        setIsLoading(false);
-        return;
-      }
+    let userOrders: FirestoreOrder[] = [];
+    let deviceOrders: FirestoreOrder[] = [];
 
-      let allOrders: FirestoreOrder[] = [];
-
-      try {
-        const orderColl = collection(db, 'orders');
+    const combineAndSetOrders = () => {
+        const allOrders = new Map<string, FirestoreOrder>();
+        userOrders.forEach(order => allOrders.set(order.id, order));
+        deviceOrders.forEach(order => allOrders.set(order.id, order));
         
-        let queries = [];
-        // Always query by deviceId if it exists.
-        if (deviceId) {
-             queries.push(query(orderColl, where('deviceId', '==', deviceId)));
-        }
-        // If the user is logged in, also query by their userId.
-        if (user) {
-            queries.push(query(orderColl, where('userId', '==', user.uid)));
-        }
-
-        if (queries.length === 0) {
-            setIsLoading(false);
-            return;
-        }
-
-        const querySnapshots = await Promise.all(queries.map(q => getDocs(q)));
-        
-        querySnapshots.forEach(snapshot => {
-            snapshot.forEach((doc) => {
-                allOrders.push({ id: doc.id, ...doc.data() } as FirestoreOrder);
-            });
-        })
-        
-        // Remove duplicates if a user is logged in (orders might have both userId and deviceId)
-        const uniqueOrders = Array.from(new Map(allOrders.map(order => [order.id, order])).values());
-        
-        // Sort by creation date descending
+        const uniqueOrders = Array.from(allOrders.values());
         uniqueOrders.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-
+        
         setOrders(uniqueOrders);
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-      } finally {
         setIsLoading(false);
-      }
     };
 
-    // We depend on deviceId being set, OR a user being logged in before fetching.
-    if (deviceId || user) {
-        fetchOrders();
+    if (user) {
+        const userQuery = query(orderColl, where('userId', '==', user.uid));
+        userListener = onSnapshot(userQuery, (snapshot) => {
+            userOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder));
+            combineAndSetOrders();
+        }, (error) => {
+            console.error("Error fetching user orders:", error);
+            setIsLoading(false);
+        });
     }
-  }, [user, deviceId]);
+
+    if (deviceId) {
+        const deviceQuery = query(orderColl, where('deviceId', '==', deviceId));
+        deviceListener = onSnapshot(deviceQuery, (snapshot) => {
+            deviceOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder));
+            combineAndSetOrders();
+        }, (error) => {
+            console.error("Error fetching device orders:", error);
+            setIsLoading(false);
+        });
+    }
+    
+    if (!user && !deviceId) {
+      setIsLoading(false);
+    } else {
+      // initial call to combine in case one listener is slower than the other
+      combineAndSetOrders();
+    }
+
+    return () => {
+      if (userListener) userListener();
+      if (deviceListener) deviceListener();
+    };
+  }, [user]);
 
   const formattedOrders: OrderType[] = orders.map(order => ({
       id: order.id,

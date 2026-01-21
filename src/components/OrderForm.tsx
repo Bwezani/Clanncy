@@ -1,7 +1,7 @@
-
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Home, School, Minus, Plus, Info, CalendarClock, ChevronsUpDown, Ticket } from 'lucide-react';
@@ -119,6 +119,7 @@ const PieceSelectionDialog = ({ onSave, initialValues, prices }: { onSave: (piec
 
 export default function OrderForm() {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
   const [prices, setPrices] = useState<Prices>(defaultPrices);
@@ -325,8 +326,7 @@ export default function OrderForm() {
           title: 'Success!',
           description: result.message,
         });
-        form.reset();
-        form.setValue('price', prices.whole); // Reset price to default whole chicken price
+        router.push('/order-history');
       } else {
         toast({
           variant: 'destructive',
