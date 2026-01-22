@@ -129,7 +129,7 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
                                         )}
                                     </Button>
                                 </div>
-                                <OrderReceipt order={order.fullOrder} ref={receiptRef} />
+                                {selectedOrderForReceipt && <OrderReceipt order={selectedOrderForReceipt} ref={receiptRef} />}
                             </DialogContent>
                         </Dialog>
                     </CardFooter>

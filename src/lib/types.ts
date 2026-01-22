@@ -38,6 +38,7 @@ export type AdminOrder = {
   area?: string;
   street?: string;
   houseNumber?: string;
+  fullOrder: FirestoreOrder;
 }
 
 export interface FirestoreOrder {

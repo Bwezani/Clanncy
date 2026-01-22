@@ -110,12 +110,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         const unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
             const fetchedOrders: AdminOrder[] = [];
             querySnapshot.forEach((doc) => {
-                const data = doc.data() as FirestoreOrder;
+                const data = doc.data() as Omit<FirestoreOrder, 'id'>;
+                const firestoreOrder = { id: doc.id, ...data } as FirestoreOrder;
                 fetchedOrders.push({
                     id: doc.id,
                     date: data.createdAt.toDate(), // Keep as Date object
                     formattedDate: format(data.createdAt.toDate(), 'do MMMM, yyyy'),
-                    items: formatOrderItems(data),
+                    items: formatOrderItems(firestoreOrder),
                     price: data.price,
                     status: data.status,
                     name: data.name,
@@ -127,6 +128,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                     area: data.area,
                     street: data.street,
                     houseNumber: data.houseNumber,
+                    fullOrder: firestoreOrder,
                 });
             });
             setOrders(fetchedOrders);
