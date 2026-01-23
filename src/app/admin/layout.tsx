@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -8,25 +9,23 @@ import AdminSidebar from "@/components/layout/AdminSidebar";
 import { AdminProvider } from "@/context/AdminContext";
 import { Loader2 } from 'lucide-react';
 
-const ADMIN_EMAIL = 'bwezanijuma@gmail.com';
-
 export default function AdminLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const { user, isLoading } = useUser();
+    const { user, userRole, isLoading } = useUser();
     const router = useRouter();
 
     useEffect(() => {
         if (!isLoading) {
-            if (!user || user.email !== ADMIN_EMAIL) {
+            if (userRole !== 'admin') {
                 router.push('/');
             }
         }
-    }, [user, isLoading, router]);
+    }, [user, userRole, isLoading, router]);
 
-    if (isLoading || !user || user.email !== ADMIN_EMAIL) {
+    if (isLoading || userRole !== 'admin') {
         return (
             <div className="flex justify-center items-center h-screen">
                 <Loader2 className="h-16 w-16 animate-spin text-primary" />

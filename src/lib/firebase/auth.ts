@@ -18,6 +18,7 @@ export const signUpWithEmail = async (email: string, password: string) => {
     await setDoc(doc(db, 'users', user.uid), {
       email: user.email,
       createdAt: serverTimestamp(),
+      role: 'customer',
     });
     
     return user;

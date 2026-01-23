@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useMemo } from 'react';
-import { Menu, LayoutDashboard, LogOut } from 'lucide-react';
+import { Menu, LayoutDashboard, LogOut, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '../ThemeToggle';
@@ -18,24 +18,21 @@ import { cn } from '@/lib/utils';
 const allNavLinks = [
     { href: '/', label: 'Order Now' },
     { href: '/order-history', label: 'Order History' },
-    { href: '/admin', label: 'Admin', icon: LayoutDashboard, adminOnly: true },
+    { href: '/deliveries', label: 'Deliveries', icon: Package, for: ['assistant', 'admin'] },
+    { href: '/admin', label: 'Admin', icon: LayoutDashboard, for: ['admin'] },
 ]
-
-const ADMIN_EMAIL = 'bwezanijuma@gmail.com';
 
 export default function Header() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const pathname = usePathname();
-  const { user } = useUser();
+  const { user, userRole } = useUser();
 
   const navLinks = useMemo(() => {
     return allNavLinks.filter(link => {
-        if (link.adminOnly) {
-            return user?.email === ADMIN_EMAIL;
-        }
-        return true;
+        if (!link.for) return true; // Public links
+        return userRole && link.for.includes(userRole);
     })
-  }, [user]);
+  }, [userRole]);
 
   if (pathname.startsWith('/admin')) {
     return null;

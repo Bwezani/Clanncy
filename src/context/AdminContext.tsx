@@ -6,7 +6,8 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs, where, runTransaction, increment } from 'firebase/firestore';
-import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings } from '@/lib/types';
+import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings, AdminUser, UserRole } from '@/lib/types';
+import { useUser } from '@/hooks/use-user';
 
 function formatOrderItems(order: FirestoreOrder): string {
     const quantity = order.quantity;
@@ -68,6 +69,7 @@ const defaultGoals: GoalsSettings = {
 interface AdminContextType {
     orders: AdminOrder[];
     devices: AdminDevice[];
+    users: AdminUser[];
     markAsDelivered: (orderId: string) => void;
     deleteOrder: (orderId: string) => void;
     clearAllOrders: () => void;
@@ -83,6 +85,7 @@ interface AdminContextType {
     goals: GoalsSettings;
     setGoals: (goals: GoalsSettings) => void;
     clearGoals: () => void;
+    updateUserRole: (userId: string, role: UserRole) => void;
     isLoading: boolean;
     isSaving: boolean;
     saveAllSettings: () => void;
@@ -93,6 +96,7 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [orders, setOrders] = useState<AdminOrder[]>([]);
     const [devices, setDevices] = useState<AdminDevice[]>([]);
+    const [users, setUsers] = useState<AdminUser[]>([]);
     const [deliverySettings, setDeliverySettings] = useState<DeliverySettings>(defaultDelivery);
     const [prices, setPrices] = useState<Prices>(defaultPrices);
     const [contact, setContact] = useState<ContactSettings>(defaultContact);
@@ -101,8 +105,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
+    const { userRole } = useUser();
 
     useEffect(() => {
+        if (!userRole) {
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         const subscriptions: (() => void)[] = [];
 
@@ -141,121 +151,143 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             });
         });
         subscriptions.push(unsubscribeOrders);
-
-        const devicesQuery = query(collection(db, "devices"), orderBy("lastSeenAt", "desc"));
-        const unsubscribeDevices = onSnapshot(devicesQuery, (querySnapshot) => {
-            const fetchedDevices: AdminDevice[] = [];
-            querySnapshot.forEach((doc) => {
-                const data = doc.data() as FirestoreDevice;
-                if (data.createdAt && data.lastSeenAt) {
-                    fetchedDevices.push({
-                        id: doc.id,
-                        createdAt: data.createdAt.toDate(), // Keep as Date object
-                        formattedCreatedAt: format(data.createdAt.toDate(), 'do MMMM, yyyy'),
-                        formattedLastSeenAt: formatDistanceToNow(data.lastSeenAt.toDate(), { addSuffix: true }),
-                        userAgent: data.userAgent,
-                    });
-                }
-            });
-            setDevices(fetchedDevices);
-        }, (error) => {
-            console.error("Error fetching devices: ", error);
-             toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'Could not fetch devices.'
-            });
-        });
-        subscriptions.push(unsubscribeDevices);
-
-        const fetchSettings = async () => {
-            try {
-                // Fetch Delivery Settings
-                const deliveryDocRef = doc(db, 'settings', 'delivery');
-                const deliveryDocSnap = await getDoc(deliveryDocRef);
-                if (deliveryDocSnap.exists()) {
-                    const data = deliveryDocSnap.data();
-                    setDeliverySettings({
-                        nextDeliveryDate: data.nextDeliveryDate?.toDate(),
-                        totalSlots: data.totalSlots ?? defaultDelivery.totalSlots,
-                        disableWhenSlotsFull: data.disableWhenSlotsFull ?? defaultDelivery.disableWhenSlotsFull,
-                        slotsFullMessage: data.slotsFullMessage ?? defaultDelivery.slotsFullMessage,
-                        isSlotsEnabled: typeof data.isSlotsEnabled === 'boolean' ? data.isSlotsEnabled : defaultDelivery.isSlotsEnabled,
-                    });
-                } else {
-                    setDeliverySettings(defaultDelivery);
-                }
-
-                // Fetch Prices
-                const pricesDocRef = doc(db, 'settings', 'pricing');
-                const pricesDocSnap = await getDoc(pricesDocRef);
-                if (pricesDocSnap.exists()) {
-                    const fetchedPrices = pricesDocSnap.data() as Prices;
-                    if (typeof fetchedPrices.isChoosePiecesEnabled === 'undefined') {
-                        fetchedPrices.isChoosePiecesEnabled = true;
+        
+        if (userRole === 'admin') {
+            const devicesQuery = query(collection(db, "devices"), orderBy("lastSeenAt", "desc"));
+            const unsubscribeDevices = onSnapshot(devicesQuery, (querySnapshot) => {
+                const fetchedDevices: AdminDevice[] = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data() as FirestoreDevice;
+                    if (data.createdAt && data.lastSeenAt) {
+                        fetchedDevices.push({
+                            id: doc.id,
+                            createdAt: data.createdAt.toDate(), // Keep as Date object
+                            formattedCreatedAt: format(data.createdAt.toDate(), 'do MMMM, yyyy'),
+                            formattedLastSeenAt: formatDistanceToNow(data.lastSeenAt.toDate(), { addSuffix: true }),
+                            userAgent: data.userAgent,
+                        });
                     }
-                    setPrices(fetchedPrices);
-                }
-
-                // Fetch Contact
-                const contactDocRef = doc(db, 'settings', 'contact');
-                const contactDocSnap = await getDoc(contactDocRef);
-                if (contactDocSnap.exists()) {
-                    setContact(contactDocSnap.data() as ContactSettings);
-                }
-
-                 // Fetch Homepage
-                const homepageDocRef = doc(db, 'settings', 'homepage');
-                const homepageDocSnap = await getDoc(homepageDocRef);
-                if (homepageDocSnap.exists()) {
-                    const fetchedHomepage = homepageDocSnap.data() as HomepageSettings;
-                    if (typeof fetchedHomepage.isBounceAnimationEnabled === 'undefined') {
-                        fetchedHomepage.isBounceAnimationEnabled = true; // Default to true
-                    }
-                    setHomepage(fetchedHomepage);
-                }
-                
-                // Fetch Goals
-                const goalsDocRef = doc(db, 'settings', 'goals');
-                const goalsDocSnap = await getDoc(goalsDocRef);
-                if (goalsDocSnap.exists()) {
-                    const data = goalsDocSnap.data() as {
-                        salesTarget: number;
-                        reservationsTarget: number;
-                        devicesTarget: number;
-                        startDate?: Timestamp;
-                        endDate?: Timestamp;
-                    };
-                    const fetchedGoals: GoalsSettings = {
-                        salesTarget: data.salesTarget || 0,
-                        reservationsTarget: data.reservationsTarget || 0,
-                        devicesTarget: data.devicesTarget || 0,
-                        startDate: data.startDate?.toDate(),
-                        endDate: data.endDate?.toDate(),
-                    };
-                    setGoals(fetchedGoals);
-                } else {
-                    setGoals(defaultGoals);
-                }
-
-
-            } catch (error) {
-                 toast({
+                });
+                setDevices(fetchedDevices);
+            }, (error) => {
+                console.error("Error fetching devices: ", error);
+                toast({
                     variant: 'destructive',
                     title: 'Error',
-                    description: 'Could not fetch settings.'
+                    description: 'Could not fetch devices.'
                 });
-            } finally {
-                setIsLoading(false);
-            }
-        };
+            });
+            subscriptions.push(unsubscribeDevices);
 
-        fetchSettings();
+            const usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"));
+            const unsubscribeUsers = onSnapshot(usersQuery, (querySnapshot) => {
+                const fetchedUsers: AdminUser[] = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    fetchedUsers.push({
+                        id: doc.id,
+                        email: data.email,
+                        role: data.role || 'customer',
+                        createdAt: data.createdAt ? format(data.createdAt.toDate(), 'do MMMM, yyyy') : 'N/A',
+                    });
+                });
+                setUsers(fetchedUsers);
+            }, (error) => {
+                console.error("Error fetching users: ", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch users.' });
+            });
+            subscriptions.push(unsubscribeUsers);
+
+            const fetchSettings = async () => {
+                try {
+                    // Fetch Delivery Settings
+                    const deliveryDocRef = doc(db, 'settings', 'delivery');
+                    const deliveryDocSnap = await getDoc(deliveryDocRef);
+                    if (deliveryDocSnap.exists()) {
+                        const data = deliveryDocSnap.data();
+                        setDeliverySettings({
+                            nextDeliveryDate: data.nextDeliveryDate?.toDate(),
+                            totalSlots: data.totalSlots ?? defaultDelivery.totalSlots,
+                            disableWhenSlotsFull: data.disableWhenSlotsFull ?? defaultDelivery.disableWhenSlotsFull,
+                            slotsFullMessage: data.slotsFullMessage ?? defaultDelivery.slotsFullMessage,
+                            isSlotsEnabled: typeof data.isSlotsEnabled === 'boolean' ? data.isSlotsEnabled : defaultDelivery.isSlotsEnabled,
+                        });
+                    } else {
+                        setDeliverySettings(defaultDelivery);
+                    }
+
+                    // Fetch Prices
+                    const pricesDocRef = doc(db, 'settings', 'pricing');
+                    const pricesDocSnap = await getDoc(pricesDocRef);
+                    if (pricesDocSnap.exists()) {
+                        const fetchedPrices = pricesDocSnap.data() as Prices;
+                        if (typeof fetchedPrices.isChoosePiecesEnabled === 'undefined') {
+                            fetchedPrices.isChoosePiecesEnabled = true;
+                        }
+                        setPrices(fetchedPrices);
+                    }
+
+                    // Fetch Contact
+                    const contactDocRef = doc(db, 'settings', 'contact');
+                    const contactDocSnap = await getDoc(contactDocRef);
+                    if (contactDocSnap.exists()) {
+                        setContact(contactDocSnap.data() as ContactSettings);
+                    }
+
+                    // Fetch Homepage
+                    const homepageDocRef = doc(db, 'settings', 'homepage');
+                    const homepageDocSnap = await getDoc(homepageDocRef);
+                    if (homepageDocSnap.exists()) {
+                        const fetchedHomepage = homepageDocSnap.data() as HomepageSettings;
+                        if (typeof fetchedHomepage.isBounceAnimationEnabled === 'undefined') {
+                            fetchedHomepage.isBounceAnimationEnabled = true; // Default to true
+                        }
+                        setHomepage(fetchedHomepage);
+                    }
+                    
+                    // Fetch Goals
+                    const goalsDocRef = doc(db, 'settings', 'goals');
+                    const goalsDocSnap = await getDoc(goalsDocRef);
+                    if (goalsDocSnap.exists()) {
+                        const data = goalsDocSnap.data() as {
+                            salesTarget: number;
+                            reservationsTarget: number;
+                            devicesTarget: number;
+                            startDate?: Timestamp;
+                            endDate?: Timestamp;
+                        };
+                        const fetchedGoals: GoalsSettings = {
+                            salesTarget: data.salesTarget || 0,
+                            reservationsTarget: data.reservationsTarget || 0,
+                            devicesTarget: data.devicesTarget || 0,
+                            startDate: data.startDate?.toDate(),
+                            endDate: data.endDate?.toDate(),
+                        };
+                        setGoals(fetchedGoals);
+                    } else {
+                        setGoals(defaultGoals);
+                    }
+
+
+                } catch (error) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: 'Could not fetch settings.'
+                    });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchSettings();
+        } else {
+            setIsLoading(false);
+        }
 
         return () => {
             subscriptions.forEach(sub => sub());
         };
-    }, [toast]);
+    }, [toast, userRole]);
 
     const markAsDelivered = async (orderId: string) => {
         const orderDocRef = doc(db, 'orders', orderId);
@@ -437,11 +469,33 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setGoals(defaultGoals);
     };
 
+    const updateUserRole = async (userId: string, role: UserRole) => {
+        if (userRole !== 'admin') {
+            toast({ variant: 'destructive', title: "Permission Denied", description: "You are not authorized to change user roles." });
+            return;
+        }
+        const userDocRef = doc(db, 'users', userId);
+        try {
+            await updateDoc(userDocRef, { role: role });
+            toast({
+                title: "User Role Updated",
+                description: `User role has been successfully updated to ${role}.`
+            });
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: "Update Failed",
+                description: `Could not update user role.`
+            });
+        }
+    };
+
 
     return (
         <AdminContext.Provider value={{ 
             orders, 
-            devices, 
+            devices,
+            users,
             markAsDelivered, 
             deleteOrder,
             clearAllOrders,
@@ -457,6 +511,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             goals,
             setGoals,
             clearGoals,
+            updateUserRole,
             isLoading,
             isSaving,
             saveAllSettings,

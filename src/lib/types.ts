@@ -4,6 +4,8 @@ import type { OrderInput } from './schema';
 
 export type OrderStatus = 'Ready for Pickup' | 'Delivered' | 'Pending';
 
+export type UserRole = 'admin' | 'assistant' | 'customer';
+
 export type PieceDetails = {
   breasts: number;
   thighs: number;
@@ -120,3 +122,17 @@ export interface GoalsSettings {
     startDate?: Date;
     endDate?: Date;
 }
+
+export type FirestoreUser = {
+  id: string;
+  email: string;
+  role: UserRole;
+  createdAt: Timestamp;
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  role: UserRole;
+  createdAt: string;
+};

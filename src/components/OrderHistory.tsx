@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase/config';
 import type { Order as OrderType } from '@/lib/types';
@@ -147,66 +147,47 @@ export function OrderHistory() {
 
   useEffect(() => {
     const deviceId = localStorage.getItem('deviceId');
-
-    if (!user && !deviceId) {
-      setOrders([]);
-      setIsLoading(false);
-      return;
-    }
+    const orderColl = collection(db, 'orders');
+    let unsubscribe: (() => void) | null = null;
 
     setIsLoading(true);
-    const orderColl = collection(db, 'orders');
-    
-    let userListener: (() => void) | null = null;
-    let deviceListener: (() => void) | null = null;
-
-    let userOrders: FirestoreOrder[] = [];
-    let deviceOrders: FirestoreOrder[] = [];
-
-    const combineAndSetOrders = () => {
-        const allOrders = new Map<string, FirestoreOrder>();
-        userOrders.forEach(order => allOrders.set(order.id, order));
-        deviceOrders.forEach(order => allOrders.set(order.id, order));
-        
-        const uniqueOrders = Array.from(allOrders.values());
-        uniqueOrders.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-        
-        setOrders(uniqueOrders);
-        setIsLoading(false);
-    };
 
     if (user) {
+        // User is logged in, fetch their orders
         const userQuery = query(orderColl, where('userId', '==', user.uid));
-        userListener = onSnapshot(userQuery, (snapshot) => {
-            userOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder));
-            combineAndSetOrders();
+        unsubscribe = onSnapshot(userQuery, (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder));
+            setOrders(fetchedOrders);
+            setIsLoading(false);
         }, (error) => {
             console.error("Error fetching user orders:", error);
+            setOrders([]);
             setIsLoading(false);
         });
-    }
-
-    if (deviceId) {
+    } else if (deviceId) {
+        // User is logged out, fetch orders for this device that are anonymous
         const deviceQuery = query(orderColl, where('deviceId', '==', deviceId));
-        deviceListener = onSnapshot(deviceQuery, (snapshot) => {
-            deviceOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder));
-            combineAndSetOrders();
+        unsubscribe = onSnapshot(deviceQuery, (snapshot) => {
+            const fetchedOrders = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder))
+                .filter(order => !order.userId); // Ensure we only show orders placed anonymously
+            setOrders(fetchedOrders);
+            setIsLoading(false);
         }, (error) => {
             console.error("Error fetching device orders:", error);
+            setOrders([]);
             setIsLoading(false);
         });
-    }
-    
-    if (!user && !deviceId) {
-      setIsLoading(false);
     } else {
-      // initial call to combine in case one listener is slower than the other
-      combineAndSetOrders();
+        // No user and no device ID, so no orders to show
+        setOrders([]);
+        setIsLoading(false);
     }
 
     return () => {
-      if (userListener) userListener();
-      if (deviceListener) deviceListener();
+        if (unsubscribe) {
+            unsubscribe();
+        }
     };
   }, [user]);
 

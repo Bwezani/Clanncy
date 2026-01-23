@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { BarChart, Home, Menu, Package, Settings, Smartphone } from "lucide-react";
+import { BarChart, Home, Menu, Package, Settings, Smartphone, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -23,6 +23,11 @@ export const navLinks = [
         href: '/admin/orders',
         label: 'Orders',
         icon: Package
+    },
+    {
+        href: '/admin/users',
+        label: 'Users',
+        icon: Users
     },
     {
         href: '/admin/settings',
