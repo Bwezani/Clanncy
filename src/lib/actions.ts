@@ -14,6 +14,7 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
   }
   
   try {
+    let newOrderId: string | null = null;
     const deliverySettingsRef = doc(db, "settings", "delivery");
     const slotsCounterRef = doc(db, "slots", "live_counter");
 
@@ -39,6 +40,8 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
 
         // If we are here, a slot is available or slots are not enabled.
         const newOrderRef = doc(collection(db, "orders"));
+        newOrderId = newOrderRef.id;
+
         const orderData: any = {
             ...validation.data,
             createdAt: serverTimestamp(),
@@ -61,7 +64,7 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
     });
     
     console.log('New Order Submitted:', validation.data);
-    return { success: true, message: 'Your order has been placed successfully!' };
+    return { success: true, message: 'Your order has been placed successfully!', orderId: newOrderId };
 
   } catch(error) {
     console.error("Error submitting order to Firestore:", error);
