@@ -12,6 +12,7 @@ import { ContactCard } from '@/components/ContactCard';
 const defaultContent = {
   title: 'The Best Chicken on Campus',
   subtitle: 'Preorder now and pay when your chicken is delivered!',
+  formLayout: 'continuous' as 'continuous' | 'stacked',
 };
 
 export default function Home() {
@@ -22,7 +23,14 @@ export default function Home() {
     const docRef = doc(db, 'settings', 'homepage');
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setContent(docSnap.data() as typeof defaultContent);
+        const data = docSnap.data();
+        setContent({
+            title: data.title || defaultContent.title,
+            subtitle: data.subtitle || defaultContent.subtitle,
+            formLayout: data.formLayout || defaultContent.formLayout,
+        });
+      } else {
+        setContent(defaultContent);
       }
       setIsLoading(false);
     }, (error) => {
@@ -58,7 +66,7 @@ export default function Home() {
                 </CardTitle>
             </CardHeader>
           <CardContent className="p-0">
-            <OrderForm />
+            <OrderForm formLayout={content.formLayout} />
           </CardContent>
         </Card>
         <div className="pt-8">

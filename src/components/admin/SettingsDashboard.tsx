@@ -16,6 +16,7 @@ import { Separator } from '../ui/separator';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 
 function DangerZone() {
@@ -250,7 +251,7 @@ export default function SettingsDashboard() {
         <Card>
             <CardHeader>
                 <CardTitle>Homepage Settings</CardTitle>
-                <CardDescription>Set the main title and subtitle on the homepage.</CardDescription>
+                <CardDescription>Set the main title, subtitle and images on the homepage.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                  <div className="space-y-2">
@@ -271,6 +272,46 @@ export default function SettingsDashboard() {
                         value={homepage.subtitle}
                         onChange={(e) => setHomepage({ ...homepage, subtitle: e.target.value })}
                     />
+                </div>
+                <div className="space-y-2">
+                    <Label>Order Form Layout</Label>
+                     <RadioGroup
+                        value={homepage.formLayout || 'continuous'}
+                        onValueChange={(value: 'continuous' | 'stacked') => setHomepage({ ...homepage, formLayout: value as 'continuous' | 'stacked' })}
+                        className="flex space-x-4 pt-2"
+                    >
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="continuous" id="continuous" />
+                            <Label htmlFor="continuous">Continuous</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="stacked" id="stacked" />
+                            <Label htmlFor="stacked">Stacked</Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+                <Separator />
+                <div className="grid md:grid-cols-2 gap-4 pt-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="whole-chicken-image-url">Whole Chicken Image URL</Label>
+                        <Input
+                            id="whole-chicken-image-url"
+                            type="text"
+                            placeholder="https://example.com/image.png"
+                            value={homepage.wholeChickenImageUrl || ''}
+                            onChange={(e) => setHomepage({ ...homepage, wholeChickenImageUrl: e.target.value })}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="pieces-image-url">Pieces Image URL</Label>
+                        <Input
+                            id="pieces-image-url"
+                            type="text"
+                            placeholder="https://example.com/image.png"
+                            value={homepage.piecesImageUrl || ''}
+                            onChange={(e) => setHomepage({ ...homepage, piecesImageUrl: e.target.value })}
+                        />
+                    </div>
                 </div>
             </CardContent>
         </Card>

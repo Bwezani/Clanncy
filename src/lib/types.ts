@@ -105,6 +105,9 @@ export interface HomepageSettings {
     title: string;
     subtitle: string;
     isBounceAnimationEnabled?: boolean;
+    formLayout?: 'continuous' | 'stacked';
+    wholeChickenImageUrl?: string;
+    piecesImageUrl?: string;
 }
 
 export interface DeliverySettings {

@@ -47,6 +47,9 @@ const defaultHomepage: HomepageSettings = {
     title: 'The Best Chicken on Campus',
     subtitle: 'Preorder now and pay when your chicken is delivered!',
     isBounceAnimationEnabled: true,
+    formLayout: 'continuous',
+    wholeChickenImageUrl: 'https://i.postimg.cc/JhFDRd2m/359635-removebg-preview.png',
+    piecesImageUrl: 'https://i.postimg.cc/G2Zc5WS4/359689-removebg-preview.png',
 }
 
 const defaultDelivery: DeliverySettings = {
@@ -116,41 +119,43 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(true);
         const subscriptions: (() => void)[] = [];
 
-        const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-        const unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
-            const fetchedOrders: AdminOrder[] = [];
-            querySnapshot.forEach((doc) => {
-                const data = doc.data() as Omit<FirestoreOrder, 'id'>;
-                const firestoreOrder = { id: doc.id, ...data } as FirestoreOrder;
-                fetchedOrders.push({
-                    id: doc.id,
-                    date: data.createdAt.toDate(), // Keep as Date object
-                    formattedDate: format(data.createdAt.toDate(), 'do MMMM, yyyy'),
-                    items: formatOrderItems(firestoreOrder),
-                    price: data.price,
-                    status: data.status,
-                    name: data.name,
-                    phone: data.phone,
-                    deliveryLocationType: data.deliveryLocationType,
-                    school: data.school,
-                    block: data.block,
-                    room: data.room,
-                    area: data.area,
-                    street: data.street,
-                    houseNumber: data.houseNumber,
-                    fullOrder: firestoreOrder,
+        if (userRole === 'admin' || userRole === 'assistant') {
+            const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+            const unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
+                const fetchedOrders: AdminOrder[] = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data() as Omit<FirestoreOrder, 'id'>;
+                    const firestoreOrder = { id: doc.id, ...data } as FirestoreOrder;
+                    fetchedOrders.push({
+                        id: doc.id,
+                        date: data.createdAt.toDate(), // Keep as Date object
+                        formattedDate: format(data.createdAt.toDate(), 'do MMMM, yyyy'),
+                        items: formatOrderItems(firestoreOrder),
+                        price: data.price,
+                        status: data.status,
+                        name: data.name,
+                        phone: data.phone,
+                        deliveryLocationType: data.deliveryLocationType,
+                        school: data.school,
+                        block: data.block,
+                        room: data.room,
+                        area: data.area,
+                        street: data.street,
+                        houseNumber: data.houseNumber,
+                        fullOrder: firestoreOrder,
+                    });
+                });
+                setOrders(fetchedOrders);
+            }, (error) => {
+                console.error("Error fetching orders: ", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Could not fetch orders.'
                 });
             });
-            setOrders(fetchedOrders);
-        }, (error) => {
-            console.error("Error fetching orders: ", error);
-            toast({
-                variant: 'destructive',
-                title: 'Error',
-                description: 'Could not fetch orders.'
-            });
-        });
-        subscriptions.push(unsubscribeOrders);
+            subscriptions.push(unsubscribeOrders);
+        }
         
         if (userRole === 'admin') {
             const devicesQuery = query(collection(db, "devices"), orderBy("lastSeenAt", "desc"));
@@ -239,10 +244,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                     const homepageDocSnap = await getDoc(homepageDocRef);
                     if (homepageDocSnap.exists()) {
                         const fetchedHomepage = homepageDocSnap.data() as HomepageSettings;
-                        if (typeof fetchedHomepage.isBounceAnimationEnabled === 'undefined') {
-                            fetchedHomepage.isBounceAnimationEnabled = true; // Default to true
-                        }
-                        setHomepage(fetchedHomepage);
+                        setHomepage({
+                            title: fetchedHomepage.title || defaultHomepage.title,
+                            subtitle: fetchedHomepage.subtitle || defaultHomepage.subtitle,
+                            isBounceAnimationEnabled: typeof fetchedHomepage.isBounceAnimationEnabled === 'boolean' ? fetchedHomepage.isBounceAnimationEnabled : defaultHomepage.isBounceAnimationEnabled,
+                            formLayout: fetchedHomepage.formLayout || defaultHomepage.formLayout,
+                            wholeChickenImageUrl: fetchedHomepage.wholeChickenImageUrl || defaultHomepage.wholeChickenImageUrl,
+                            piecesImageUrl: fetchedHomepage.piecesImageUrl || defaultHomepage.piecesImageUrl,
+                        });
+                    } else {
+                        setHomepage(defaultHomepage);
                     }
                     
                     // Fetch Goals
