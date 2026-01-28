@@ -5,8 +5,8 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs, where, runTransaction, increment } from 'firebase/firestore';
-import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings, AdminUser, UserRole } from '@/lib/types';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs, where, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
+import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings, AdminUser, UserRole, DeliveryRecord, FirestoreDeliveryRecord } from '@/lib/types';
 import { useUser } from '@/hooks/use-user';
 
 function formatOrderItems(order: FirestoreOrder): string {
@@ -73,6 +73,9 @@ interface AdminContextType {
     orders: AdminOrder[];
     devices: AdminDevice[];
     users: AdminUser[];
+    deliveredRecords: DeliveryRecord[];
+    droppedRecords: DeliveryRecord[];
+    confirmDelivery: (orderId: string) => void;
     markAsDelivered: (orderId: string) => void;
     deleteOrder: (orderId: string) => void;
     clearAllOrders: () => void;
@@ -105,6 +108,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [contact, setContact] = useState<ContactSettings>(defaultContact);
     const [homepage, setHomepage] = useState<HomepageSettings>(defaultHomepage);
     const [goals, setGoals] = useState<GoalsSettings>(defaultGoals);
+    const [deliveredRecords, setDeliveredRecords] = useState<DeliveryRecord[]>([]);
+    const [droppedRecords, setDroppedRecords] = useState<DeliveryRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
@@ -155,6 +160,44 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 });
             });
             subscriptions.push(unsubscribeOrders);
+
+            const deliveredQuery = query(collection(db, "deliveredRecords"), orderBy("lastActionAt", "desc"));
+            const unsubscribeDelivered = onSnapshot(deliveredQuery, (snapshot) => {
+                const fetchedRecords: DeliveryRecord[] = snapshot.docs.map(doc => {
+                    const data = doc.data() as FirestoreDeliveryRecord;
+                    return {
+                        id: doc.id,
+                        name: data.name,
+                        phone: data.phone,
+                        deliveryLocation: data.deliveryLocation,
+                        lastActionAt: data.lastActionAt.toDate(),
+                        formattedLastActionAt: format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a'),
+                    };
+                });
+                setDeliveredRecords(fetchedRecords);
+            }, (error) => {
+                console.error("Error fetching delivered records:", error);
+            });
+            subscriptions.push(unsubscribeDelivered);
+
+            const droppedQuery = query(collection(db, "droppedRecords"), orderBy("lastActionAt", "desc"));
+            const unsubscribeDropped = onSnapshot(droppedQuery, (snapshot) => {
+                const fetchedRecords: DeliveryRecord[] = snapshot.docs.map(doc => {
+                    const data = doc.data() as FirestoreDeliveryRecord;
+                    return {
+                        id: doc.id,
+                        name: data.name,
+                        phone: data.phone,
+                        deliveryLocation: data.deliveryLocation,
+                        lastActionAt: data.lastActionAt.toDate(),
+                        formattedLastActionAt: format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a'),
+                    };
+                });
+                setDroppedRecords(fetchedRecords);
+            }, (error) => {
+                console.error("Error fetching dropped records:", error);
+            });
+            subscriptions.push(unsubscribeDropped);
         }
         
         if (userRole === 'admin') {
@@ -300,6 +343,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         };
     }, [toast, userRole]);
 
+    const confirmDelivery = async (orderId: string) => {
+        const orderDocRef = doc(db, 'orders', orderId);
+        try {
+            await updateDoc(orderDocRef, { status: 'Confirmed' });
+            toast({
+                title: "Order Updated",
+                description: `Order ${orderId} has been confirmed.`
+            });
+        } catch (error) {
+             toast({
+                variant: 'destructive',
+                title: "Update Failed",
+                description: `Could not confirm order ${orderId}.`
+            });
+        }
+    };
+
     const markAsDelivered = async (orderId: string) => {
         const orderDocRef = doc(db, 'orders', orderId);
         const slotsCounterRef = doc(db, 'slots', 'live_counter');
@@ -307,16 +367,34 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             await runTransaction(db, async (transaction) => {
                 const orderDoc = await transaction.get(orderDocRef);
                 if (!orderDoc.exists() || orderDoc.data().status === 'Delivered') {
-                    // If order doesn't exist or is already delivered, do nothing.
                     return;
                 }
 
-                // Mark order as delivered
+                const orderData = orderDoc.data() as FirestoreOrder;
+
                 transaction.update(orderDocRef, { status: 'Delivered' });
 
-                // Decrement taken slots if the order was pending/ready
-                if (['Pending', 'Ready for Pickup'].includes(orderDoc.data().status)) {
+                if (['Pending', 'Confirmed'].includes(orderDoc.data().status)) {
                     transaction.update(slotsCounterRef, { count: increment(-1) });
+                }
+
+                if (orderData.deviceId) {
+                    const recordRef = doc(db, 'deliveredRecords', orderData.deviceId);
+                    const deliveryLocation = [
+                        orderData.school, 
+                        orderData.block, 
+                        orderData.room ? `Room ${orderData.room}` : '',
+                        orderData.area, 
+                        orderData.street, 
+                        orderData.houseNumber
+                    ].filter(Boolean).join(', ');
+
+                    transaction.set(recordRef, {
+                        name: orderData.name,
+                        phone: orderData.phone,
+                        deliveryLocation: deliveryLocation,
+                        lastActionAt: serverTimestamp(),
+                    });
                 }
             });
             toast({
@@ -339,14 +417,33 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             await runTransaction(db, async (transaction) => {
                 const orderDoc = await transaction.get(orderDocRef);
                 if (!orderDoc.exists()) {
-                    return; // Order already deleted
+                    return;
                 }
 
-                // Delete the order
+                const orderData = orderDoc.data() as FirestoreOrder;
+                
+                if (orderData.deviceId) {
+                    const recordRef = doc(db, 'droppedRecords', orderData.deviceId);
+                    const deliveryLocation = [
+                        orderData.school, 
+                        orderData.block, 
+                        orderData.room ? `Room ${orderData.room}` : '',
+                        orderData.area, 
+                        orderData.street, 
+                        orderData.houseNumber
+                    ].filter(Boolean).join(', ');
+                    
+                    transaction.set(recordRef, {
+                        name: orderData.name,
+                        phone: orderData.phone,
+                        deliveryLocation: deliveryLocation,
+                        lastActionAt: serverTimestamp(),
+                    });
+                }
+
                 transaction.delete(orderDocRef);
 
-                // Decrement taken slots if the order was pending/ready
-                if (['Pending', 'Ready for Pickup'].includes(orderDoc.data().status)) {
+                if (['Pending', 'Confirmed'].includes(orderData.status)) {
                     transaction.update(slotsCounterRef, { count: increment(-1) });
                 }
             });
@@ -374,7 +471,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 batch.delete(doc.ref);
             });
 
-            // Also reset the slot counter
             const slotsCounterRef = doc(db, 'slots', 'live_counter');
             batch.set(slotsCounterRef, { count: 0 });
             
@@ -420,7 +516,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const saveAllSettings = async () => {
         setIsSaving(true);
         try {
-            // Save delivery settings
             const deliveryDocRef = doc(db, 'settings', 'delivery');
             const deliveryDataToSave = {
                 ...deliverySettings,
@@ -434,20 +529,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             }
 
 
-            // Save prices
             const pricesDocRef = doc(db, 'settings', 'pricing');
             await setDoc(pricesDocRef, prices, { merge: true });
             localStorage.setItem('curbsidePrices', JSON.stringify(prices));
 
-            // Save contact settings
             const contactDocRef = doc(db, 'settings', 'contact');
             await setDoc(contactDocRef, contact, { merge: true });
             
-            // Save homepage settings
             const homepageDocRef = doc(db, 'settings', 'homepage');
             await setDoc(homepageDocRef, homepage, { merge: true });
 
-            // Save goal settings
             const goalsDocRef = doc(db, 'settings', 'goals');
             const goalsToSave = {
                 salesTarget: goals.salesTarget,
@@ -507,6 +598,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             orders, 
             devices,
             users,
+            deliveredRecords,
+            droppedRecords,
+            confirmDelivery,
             markAsDelivered, 
             deleteOrder,
             clearAllOrders,

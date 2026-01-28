@@ -1,0 +1,246 @@
+
+'use client';
+
+import { useAdmin } from "@/context/AdminContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import type { DeliveryRecord, AdminOrder } from "@/lib/types";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Loader2, Phone, RefreshCw } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Button } from "../ui/button";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      {...props}
+    >
+      <path d="M12.04 2.004c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.42 1.29 4.88L2 22l5.25-1.38c1.41.81 3.02 1.29 4.7 1.29h.01c5.46 0 9.91-4.45 9.91-9.91s-4.45-9.91-9.91-9.91zM17.23 15.25c-.2-.11-.73-.36-1.04-.42-.32-.06-.55-.1-.78.1-.23.2-.88.75-1.08.9-.2.15-.4.16-.58.05-.18-.1-.73-.27-1.4-1.12-.52-.63-.87-1.12-1-1.32-.1-.2-.02-.3.07-.4.08-.08.2-.21.28-.31.08-.1.12-.18.18-.3.06-.12.03-.23-.02-.33-.05-.1-.49-.97-1.17-1.34-.14-.08-.28-.1-.42-.1-.14 0-.3 0-.44.02-.14.02-.36.1-.55.28-.19.18-.73.7-1.02 1.33-.29.63-.58 1.48.05 2.58.63 1.1 1.04 1.48 2.28 2.53 1.96 1.69 2.53 1.61 3.48 1.61.95 0 1.7-.13 2.1-.26.4-.13 1.04-.42 1.18-.83.14-.4.14-.78.1-.88-.05-.1-.18-.16-.38-.26z" />
+    </svg>
+);
+
+const formatPhoneNumberForWhatsApp = (phone: string): string => {
+    // Removes spaces, pluses, and replaces leading 0 with 260 for Zambian numbers
+    let cleaned = phone.replace(/\s/g, ''); // remove spaces
+    cleaned = cleaned.replace(/^\+/, ''); // remove leading plus
+    if (cleaned.startsWith('0')) {
+        cleaned = '260' + cleaned.substring(1);
+    }
+    return cleaned;
+};
+
+
+function RecordList({ records, type, orders }: { records: DeliveryRecord[], type: 'delivered' | 'dropped', orders: AdminOrder[] }) {
+    const isMobile = useIsMobile();
+    const actionDateLabel = type === 'delivered' ? 'Last Delivered' : 'Last Dropped';
+    const { toast } = useToast();
+    const [isChecking, setIsChecking] = useState<string | null>(null);
+
+    const handleCheckOpenOrders = (deviceId: string) => {
+        setIsChecking(deviceId);
+        
+        setTimeout(() => {
+            const openOrder = orders.find(order => 
+                order.fullOrder.deviceId === deviceId && order.status !== 'Delivered'
+            );
+
+            if (openOrder) {
+                toast({
+                    title: "Open Order Found!",
+                    description: `This device has an open order: #${openOrder.id} (${openOrder.status}).`,
+                });
+            } else {
+                toast({
+                    title: "No Open Orders",
+                    description: `No open orders found for this device.`,
+                });
+            }
+            setIsChecking(null);
+        }, 500);
+    };
+
+    if (records.length === 0) {
+        return (
+            <p className="text-center text-muted-foreground py-8">
+                No {type} records found.
+            </p>
+        );
+    }
+    
+    if (isMobile) {
+        return (
+            <div className="space-y-4">
+                {records.map(record => (
+                    <Card key={record.id}>
+                        <CardHeader>
+                            <CardTitle className="text-base">{record.name}</CardTitle>
+                            <CardDescription>{record.phone}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                            <div>
+                                <p className="font-semibold">Location:</p>
+                                <p className="text-muted-foreground">{record.deliveryLocation}</p>
+                            </div>
+                             <div>
+                                <p className="font-semibold">{actionDateLabel}:</p>
+                                <p className="text-muted-foreground">{record.formattedLastActionAt}</p>
+                            </div>
+                             <div>
+                                <p className="font-semibold">Device ID:</p>
+                                <p className="font-mono text-xs text-muted-foreground break-all">{record.id}</p>
+                            </div>
+                        </CardContent>
+                         <CardFooter className="flex flex-col gap-2">
+                             <div className="flex gap-2 w-full">
+                                <Button asChild size="sm" variant="outline" className="flex-1">
+                                    <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(record.phone)}`} target="_blank" rel="noopener noreferrer">
+                                        <WhatsAppIcon className="mr-2 h-4 w-4" /> WhatsApp
+                                    </a>
+                                </Button>
+                                <Button asChild size="sm" className="flex-1">
+                                    <a href={`tel:${record.phone}`}>
+                                        <Phone className="mr-2 h-4 w-4" /> Call
+                                    </a>
+                                </Button>
+                            </div>
+                            <Button 
+                                size="sm" 
+                                variant="secondary"
+                                className="w-full"
+                                onClick={() => handleCheckOpenOrders(record.id)}
+                                disabled={isChecking === record.id}
+                            >
+                                {isChecking === record.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                Check for Open Orders
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>{actionDateLabel}</TableHead>
+                    <TableHead>Device ID</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {records.map(record => (
+                    <TableRow key={record.id}>
+                        <TableCell>{record.name}</TableCell>
+                        <TableCell>{record.phone}</TableCell>
+                        <TableCell>{record.deliveryLocation}</TableCell>
+                        <TableCell>{record.formattedLastActionAt}</TableCell>
+                        <TableCell className="font-mono text-xs max-w-[150px] truncate">{record.id}</TableCell>
+                         <TableCell className="text-right">
+                            <TooltipProvider>
+                                <div className="flex items-center justify-end gap-2">
+                                <Button asChild size="sm" variant="outline">
+                                        <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(record.phone)}`} target="_blank" rel="noopener noreferrer">
+                                            <WhatsAppIcon className="mr-2 h-4 w-4" /> WhatsApp
+                                        </a>
+                                    </Button>
+                                    <Button asChild size="sm">
+                                        <a href={`tel:${record.phone}`}>
+                                            <Phone className="mr-2 h-4 w-4" /> Call
+                                        </a>
+                                    </Button>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button 
+                                                size="icon" 
+                                                variant="ghost"
+                                                onClick={() => handleCheckOpenOrders(record.id)}
+                                                disabled={isChecking === record.id}
+                                            >
+                                                {isChecking === record.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                                <span className="sr-only">Check for open orders</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Check for open orders</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </div>
+                            </TooltipProvider>
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    );
+}
+
+export default function RecordsDashboard() {
+    const { deliveredRecords, droppedRecords, isLoading, orders } = useAdmin();
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
+    
+    return (
+        <Tabs defaultValue="delivered" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="delivered">Delivered Records</TabsTrigger>
+                <TabsTrigger value="dropped">Dropped Records</TabsTrigger>
+            </TabsList>
+            <TabsContent value="delivered" className="mt-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Delivered Records</CardTitle>
+                        <CardDescription>
+                            Unique devices for orders that were successfully delivered. The record is updated on each new delivery.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <RecordList records={deliveredRecords} type="delivered" orders={orders} />
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            <TabsContent value="dropped" className="mt-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Dropped Records</CardTitle>
+                        <CardDescription>
+                            Unique devices for orders that were dropped/cancelled. The record is updated if another order from the same device is dropped.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <RecordList records={droppedRecords} type="dropped" orders={orders} />
+                    </CardContent>
+                </Card>
+            </TabsContent>
+        </Tabs>
+    );
+}

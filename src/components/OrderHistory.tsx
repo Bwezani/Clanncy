@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,16 +6,18 @@ import { format } from 'date-fns';
 import { db } from '@/lib/firebase/config';
 import type { Order as OrderType } from '@/lib/types';
 import type { FirestoreOrder } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { List, Loader2, Receipt, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/hooks/use-user';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import OrderReceipt from './OrderReceipt';
 import html2canvas from 'html2canvas';
+import OrderStatusProgress from './OrderStatusProgress';
+import { Separator } from './ui/separator';
 
 
 function formatOrderItems(order: FirestoreOrder): string {
@@ -37,10 +38,13 @@ function formatOrderItems(order: FirestoreOrder): string {
 function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emptyState: React.ReactNode, isLoading: boolean }) {
     const receiptRef = useRef<HTMLDivElement>(null);
     const [isDownloading, setIsDownloading] = useState(false);
-    const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<FirestoreOrder | null>(null);
+    
+    const [selectedOrder, setSelectedOrder] = useState<OrderType | null>(null);
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
     const handleDownload = async () => {
-        if (!receiptRef.current) return;
+        if (!receiptRef.current || !selectedOrder) return;
         setIsDownloading(true);
         try {
             const canvas = await html2canvas(receiptRef.current, {
@@ -48,9 +52,7 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
                 scale: 2,
             });
             const link = document.createElement('a');
-            if (selectedOrderForReceipt) {
-                link.download = `receipt-${selectedOrderForReceipt.id}.png`;
-            }
+            link.download = `receipt-${selectedOrder.id}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
         } catch (error) {
@@ -60,6 +62,10 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
         }
     };
 
+    const handleOrderClick = (order: OrderType) => {
+        setSelectedOrder(order);
+        setIsDetailsOpen(true);
+    };
 
     if (isLoading) {
         return (
@@ -77,66 +83,113 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
     const sortedOrders = [...orders].sort((a, b) => b.fullOrder.createdAt.toMillis() - a.fullOrder.createdAt.toMillis());
 
     return (
-        <div className="space-y-4">
-          {sortedOrders.map(order => (
-            <Card key={order.id} className="shadow-md hover:shadow-xl transition-shadow duration-300">
-                <CardHeader className="flex flex-row items-start justify-between pb-2">
-                    <div>
-                        <CardTitle className="text-lg font-bold truncate" style={{ maxWidth: '150px' }}>{order.id}</CardTitle>
-                        <p className="text-sm text-muted-foreground">{order.date}</p>
-                    </div>
-                     <Badge variant={
-                        order.status === 'Delivered' ? 'outline' :
-                        order.status === 'Pending' ? 'secondary' :
-                        'default'
-                    } className={cn(order.status === 'Ready for Pickup' && 'bg-accent text-accent-foreground')}>
-                        {order.status}
-                    </Badge>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex justify-between items-end">
+        <>
+            <div className="space-y-4">
+            {sortedOrders.map(order => (
+                <Card key={order.id} onClick={() => handleOrderClick(order)} className="shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer">
+                    <CardHeader className="flex flex-row items-start justify-between pb-2">
                         <div>
-                            <p className="font-semibold">{order.items}</p>
+                            <CardTitle className="text-lg font-bold truncate" style={{ maxWidth: '150px' }}>{order.id}</CardTitle>
+                            <p className="text-sm text-muted-foreground">{order.date}</p>
                         </div>
-                        <p className="text-xl font-bold text-primary">K{order.price.toFixed(2)}</p>
-                    </div>
-                </CardContent>
-                {order.status === 'Delivered' && (
-                     <CardFooter className="pt-4">
-                         <Dialog onOpenChange={(open) => { if (open) { setSelectedOrderForReceipt(order.fullOrder) } else { setSelectedOrderForReceipt(null) }}}>
-                            <DialogTrigger asChild>
-                                <Button variant="outline" size="sm" className="ml-auto">
-                                    <Receipt className="mr-2 h-4 w-4" />
-                                    View Receipt
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="p-0 bg-transparent border-none shadow-none max-h-[90vh] overflow-y-auto">
-                                <DialogHeader>
-                                     <DialogTitle className="sr-only">Order Receipt for {selectedOrderForReceipt?.id}</DialogTitle>
-                                </DialogHeader>
-                                <div className="p-4 bg-transparent flex justify-center">
-                                     <Button onClick={handleDownload} disabled={isDownloading} className="w-full sm:w-auto">
-                                        {isDownloading ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Downloading...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Download className="mr-2 h-4 w-4" />
-                                                Download Receipt
-                                            </>
-                                        )}
-                                    </Button>
+                        <Badge variant={
+                            order.status === 'Delivered' ? 'outline' :
+                            order.status === 'Pending' ? 'secondary' :
+                            'default'
+                        } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground')}>
+                            {order.status}
+                        </Badge>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <p className="font-semibold">{order.items}</p>
+                            </div>
+                            <p className="text-xl font-bold text-primary">K{order.price.toFixed(2)}</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+            </div>
+
+            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                <DialogContent className="sm:max-w-md">
+                    {selectedOrder && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>Order Status</DialogTitle>
+                                <DialogDescription>
+                                    Order ID: <span className="font-mono text-xs">{selectedOrder.id}</span>
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="py-4 space-y-6">
+                                <OrderStatusProgress currentStatus={selectedOrder.status} />
+                                <Separator />
+                                <div className="space-y-2 text-sm">
+                                    <h4 className="font-semibold">Order Summary</h4>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Items</span>
+                                        <span className="font-medium">{selectedOrder.items}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Total</span>
+                                        <span className="font-bold text-lg text-primary">K{selectedOrder.price.toFixed(2)}</span>
+                                    </div>
                                 </div>
-                                {selectedOrderForReceipt && <OrderReceipt order={selectedOrderForReceipt} ref={receiptRef} />}
-                            </DialogContent>
-                        </Dialog>
-                    </CardFooter>
-                )}
-            </Card>
-          ))}
-        </div>
+                                <Separator />
+                                <div className="space-y-2 text-sm">
+                                    <h4 className="font-semibold">Delivery To</h4>
+                                    <p className="font-medium">{selectedOrder.fullOrder.name}</p>
+                                    <p className="text-muted-foreground">
+                                        {selectedOrder.fullOrder.deliveryLocationType === 'school'
+                                            ? `${selectedOrder.fullOrder.school || ''}, ${selectedOrder.fullOrder.block || ''}, Room ${selectedOrder.fullOrder.room || ''}`
+                                            : `${selectedOrder.fullOrder.area || ''}, ${selectedOrder.fullOrder.street || ''}, ${selectedOrder.fullOrder.houseNumber || ''}`}
+                                    </p>
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                {selectedOrder.status === 'Delivered' && (
+                                    <Button variant="outline" onClick={() => { setIsDetailsOpen(false); setIsReceiptOpen(true); }}>
+                                        <Receipt className="mr-2 h-4 w-4" />
+                                        View Receipt
+                                    </Button>
+                                )}
+                            </DialogFooter>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isReceiptOpen} onOpenChange={(open) => {
+                setIsReceiptOpen(open);
+                // If we are closing the receipt, we don't want to keep the order selected.
+                if (!open) {
+                    setSelectedOrder(null);
+                }
+            }}>
+                <DialogContent className="p-0 bg-transparent border-none shadow-none max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="sr-only">Order Receipt for {selectedOrder?.id}</DialogTitle>
+                    </DialogHeader>
+                    <div className="p-4 bg-transparent flex justify-center">
+                            <Button onClick={handleDownload} disabled={isDownloading} className="w-full sm:w-auto">
+                            {isDownloading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Downloading...
+                                </>
+                            ) : (
+                                <>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download Receipt
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                    {selectedOrder && <OrderReceipt order={selectedOrder.fullOrder} ref={receiptRef} />}
+                </DialogContent>
+            </Dialog>
+        </>
     )
 }
 
@@ -200,7 +253,7 @@ export function OrderHistory() {
       fullOrder: order,
   }));
 
-  const pendingOrders = formattedOrders.filter(o => o.status === 'Pending' || o.status === 'Ready for Pickup');
+  const pendingOrders = formattedOrders.filter(o => o.status === 'Pending' || o.status === 'Confirmed');
   const completedOrders = formattedOrders.filter(o => o.status === 'Delivered');
 
   return (

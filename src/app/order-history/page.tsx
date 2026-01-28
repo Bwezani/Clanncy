@@ -7,7 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function OrderHistoryPage() {
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto px-4">
             <div className="mb-8">
                 <Button asChild variant="outline">
                     <Link href="/">

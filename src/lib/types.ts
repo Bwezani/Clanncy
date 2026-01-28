@@ -2,7 +2,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { OrderInput } from './schema';
 
-export type OrderStatus = 'Ready for Pickup' | 'Delivered' | 'Pending';
+export type OrderStatus = 'Pending' | 'Confirmed' | 'Delivered';
 
 export type UserRole = 'admin' | 'assistant' | 'customer';
 
@@ -138,4 +138,20 @@ export type AdminUser = {
   email: string;
   role: UserRole;
   createdAt: string;
+};
+
+export type DeliveryRecord = {
+  id: string; // This will be the deviceId
+  name: string;
+  phone: string;
+  deliveryLocation: string;
+  lastActionAt: Date;
+  formattedLastActionAt: string;
+};
+
+export type FirestoreDeliveryRecord = {
+  name: string;
+  phone: string;
+  deliveryLocation: string;
+  lastActionAt: Timestamp;
 };

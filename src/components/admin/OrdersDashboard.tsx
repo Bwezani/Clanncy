@@ -183,20 +183,50 @@ function OrderReceiptAction({ order }: { order: AdminOrder }) {
 }
 
 function OrderActions({ order }: { order: AdminOrder }) {
-    const { markAsDelivered, deleteOrder } = useAdmin();
+    const { confirmDelivery, markAsDelivered, deleteOrder } = useAdmin();
     return (
         <div className="flex items-center justify-start gap-2">
             <OrderDetailsDialog order={order} />
-            {order.status !== 'Delivered' && (
+
+            {order.status === 'Pending' && (
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
                         <Button size="sm">
-                            <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                            <Check className="mr-2 h-4 w-4" /> Confirm Delivery
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader>
                             <AlertDialogTitle>Confirm Delivery</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will change the order for <span className="font-bold">{order.name}</span> to 'Confirmed'.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                         <div className="space-y-2 rounded-lg border p-4">
+                            <p className="font-semibold">{order.items}</p>
+                            <p className="text-muted-foreground">{order.name} - {order.phone}</p>
+                            <p className="font-bold text-lg text-primary">K{order.price.toFixed(2)}</p>
+                        </div>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => confirmDelivery(order.id)}>
+                                Confirm
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+
+            {order.status === 'Confirmed' && (
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                            <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Mark as Delivered</AlertDialogTitle>
                             <AlertDialogDescription>
                                 This will mark the order for <span className="font-bold">{order.name}</span> as delivered. This action cannot be undone.
                             </AlertDialogDescription>
@@ -215,9 +245,10 @@ function OrderActions({ order }: { order: AdminOrder }) {
                     </AlertDialogContent>
                 </AlertDialog>
             )}
+
              <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
+                    <Button variant="destructive" size="sm" disabled={order.status === 'Delivered'}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Drop Order
                     </Button>
@@ -247,7 +278,7 @@ function OrderActions({ order }: { order: AdminOrder }) {
 
 
 function OrderCard({ order }: { order: AdminOrder }) {
-    const { markAsDelivered, deleteOrder } = useAdmin();
+    const { confirmDelivery, markAsDelivered, deleteOrder } = useAdmin();
     return (
         <Card>
             <CardHeader className="flex flex-row justify-between items-start">
@@ -267,67 +298,95 @@ function OrderCard({ order }: { order: AdminOrder }) {
                         order.status === 'Delivered' ? 'outline' :
                         order.status === 'Pending' ? 'secondary' :
                         'default'
-                    } className={cn(order.status === 'Ready for Pickup' && 'bg-accent text-accent-foreground', "h-fit")}>
+                    } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground', "h-fit")}>
                         {order.status}
                     </Badge>
                 </div>
                 <p className="text-lg font-bold text-primary">K{order.price.toFixed(2)}</p>
             </CardContent>
             <CardFooter className="flex flex-wrap justify-end gap-2">
-                 {order.status !== 'Delivered' && (
-                <AlertDialog>
+                {order.status === 'Pending' && (
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button size="sm" className="flex-1">
+                                <Check className="mr-2 h-4 w-4" /> Confirm Delivery
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Confirm Delivery</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will change the order for <span className="font-bold">{order.name}</span> to 'Confirmed'.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="space-y-2 rounded-lg border p-4">
+                                <p className="font-semibold">{order.items}</p>
+                                <p className="text-muted-foreground">{order.name} - {order.phone}</p>
+                                <p className="font-bold text-lg text-primary">K{order.price.toFixed(2)}</p>
+                            </div>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => confirmDelivery(order.id)}>
+                                    Confirm
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
+                 {order.status === 'Confirmed' && (
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700">
+                                <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Mark as Delivered</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will mark the order for <span className="font-bold">{order.name}</span> as delivered. This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="space-y-2 rounded-lg border p-4">
+                                <p className="font-semibold">{order.items}</p>
+                                <p className="text-muted-foreground">{order.name} - {order.phone}</p>
+                                <p className="font-bold text-lg text-primary">K{order.price.toFixed(2)}</p>
+                            </div>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => markAsDelivered(order.id)}>
+                                    Confirm
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
+                 <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button size="sm" className="flex-1">
-                            <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                        <Button variant="destructive" size="sm" className="flex-1" disabled={order.status === 'Delivered'}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Drop Order
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Confirm Delivery</AlertDialogTitle>
+                            <AlertDialogTitle>Drop this order?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                This will mark the order for <span className="font-bold">{order.name}</span> as delivered. This action cannot be undone.
+                            This will permanently delete the order for <span className="font-bold">{order.name}</span>. This is for cancellations and cannot be undone.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
-                         <div className="space-y-2 rounded-lg border p-4">
-                            <p className="font-semibold">{order.items}</p>
-                            <p className="text-muted-foreground">{order.name} - {order.phone}</p>
-                            <p className="font-bold text-lg text-primary">K{order.price.toFixed(2)}</p>
-                        </div>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => markAsDelivered(order.id)}>
-                                Confirm
+                            <AlertDialogAction
+                                className={cn(buttonVariants({ variant: "destructive" }))}
+                                onClick={() => deleteOrder(order.id)}
+                            >
+                                Drop Order
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-            )}
-             <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" className="flex-1">
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Drop Order
-                    </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Drop this order?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                           This will permanently delete the order for <span className="font-bold">{order.name}</span>. This is for cancellations and cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            className={cn(buttonVariants({ variant: "destructive" }))}
-                            onClick={() => deleteOrder(order.id)}
-                        >
-                            Drop Order
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-            {order.status === 'Delivered' && <OrderReceiptAction order={order} />}
+                {order.status === 'Delivered' && <OrderReceiptAction order={order} />}
             </CardFooter>
         </Card>
     );
@@ -363,7 +422,7 @@ function OrderTable({ orders, showStatus }: { orders: AdminOrder[], showStatus?:
                                     order.status === 'Delivered' ? 'outline' :
                                     order.status === 'Pending' ? 'secondary' :
                                     'default'
-                                } className={cn(order.status === 'Ready for Pickup' && 'bg-accent text-accent-foreground')}>
+                                } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground')}>
                                     {order.status}
                                 </Badge>
                             </TableCell>
@@ -439,7 +498,7 @@ export default function OrdersDashboard() {
              <Card>
                 <CardHeader>
                     <CardTitle>Open Orders</CardTitle>
-                    <CardDescription>Manage and fulfill pending and ready for pickup orders.</CardDescription>
+                    <CardDescription>Manage and fulfill pending and confirmed orders.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -519,5 +578,3 @@ export default function OrdersDashboard() {
     </Tabs>
   );
 }
-
-    
