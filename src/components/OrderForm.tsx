@@ -118,7 +118,7 @@ const PieceSelectionDialog = ({ onSave, initialValues, prices }: { onSave: (piec
 };
 
 
-export default function OrderForm({ formLayout = 'continuous' }: { formLayout?: 'continuous' | 'stacked' }) {
+export default function OrderForm({ formLayout = 'continuous', overrideDeviceId, onSuccess, initialData }: { formLayout?: 'continuous' | 'stacked', overrideDeviceId?: string, onSuccess?: (result: { success: boolean; message: string; orderId: string | null; }) => void, initialData?: Partial<OrderInput> }) {
   const [isPending, startTransition] = useTransition();
   const [currentStep, setCurrentStep] = useState<'chicken' | 'delivery'>('chicken');
   const router = useRouter();
@@ -250,25 +250,19 @@ export default function OrderForm({ formLayout = 'continuous' }: { formLayout?: 
         drumsticks: 0,
         wings: 0,
       },
-      name: '',
-      deliveryLocationType: 'school',
-      school: 'University of Zambia (UNZA)',
-      block: '',
-      room: '',
-      phone: '',
-      area: undefined,
-      street: '',
-      houseNumber: ''
+      name: initialData?.name || '',
+      phone: initialData?.phone || '',
+      deliveryLocationType: initialData?.deliveryLocationType || 'school',
+      school: initialData?.school || 'University of Zambia (UNZA)',
+      block: initialData?.block || '',
+      room: initialData?.room || '',
+      area: initialData?.area || undefined,
+      street: initialData?.street || '',
+      houseNumber: initialData?.houseNumber || '',
     },
   });
   
-  useEffect(() => {
-    form.reset({
-      ...form.getValues(),
-      price: form.getValues('quantity') * prices.whole,
-    })
-  }, [prices.whole, form]);
-
+  const { setValue, getValues } = form;
   const chickenType = form.watch('chickenType');
   const piecesType = form.watch('piecesType');
   const quantity = form.watch('quantity');
@@ -293,37 +287,35 @@ export default function OrderForm({ formLayout = 'continuous' }: { formLayout?: 
   const slotsLeft = deliverySettings ? deliverySettings.totalSlots - takenSlots : 0;
   const areSlotsFull = deliverySettings?.isSlotsEnabled && slotsLeft <= 0;
 
-
   useEffect(() => {
+    let newPrice = 0;
     if (chickenType === 'whole') {
-      const newPrice = quantity * prices.whole;
-      form.setValue('price', newPrice);
+        newPrice = quantity * prices.whole;
     } else if (chickenType === 'pieces') {
-      if (piecesType === 'mixed') {
-        const newPrice = quantity * prices.mixedPiece;
-        form.setValue('price', newPrice);
-      }
+        if (piecesType === 'mixed') {
+            newPrice = quantity * prices.mixedPiece;
+        } else if (piecesType === 'custom' && pieceDetails) {
+            newPrice = (
+                (pieceDetails.breasts || 0) * prices.pieces.breasts +
+                (pieceDetails.thighs || 0) * prices.pieces.thighs +
+                (pieceDetails.drumsticks || 0) * prices.pieces.drumsticks +
+                (pieceDetails.wings || 0) * prices.pieces.wings
+            );
+            const totalPieces = Object.values(pieceDetails).reduce((sum, val) => sum + (val || 0), 0);
+            if (getValues('quantity') !== totalPieces) {
+                setValue('quantity', totalPieces, { shouldValidate: true });
+            }
+        }
     }
-  }, [chickenType, piecesType, quantity, form, prices]);
-  
-  useEffect(() => {
-    if (chickenType === 'pieces' && piecesType === 'custom') {
-        const totalPieces = Object.values(pieceDetails || {}).reduce((sum, val) => sum + (val || 0), 0);
-        const newPrice = (
-            (pieceDetails?.breasts || 0) * prices.pieces.breasts +
-            (pieceDetails?.thighs || 0) * prices.pieces.thighs +
-            (pieceDetails?.drumsticks || 0) * prices.pieces.drumsticks +
-            (pieceDetails?.wings || 0) * prices.pieces.wings
-        );
-        form.setValue('quantity', totalPieces, { shouldValidate: true });
-        form.setValue('price', newPrice);
+    if (getValues('price') !== newPrice) {
+        setValue('price', newPrice);
     }
-  }, [chickenType, piecesType, pieceDetails, form, prices.pieces])
+  }, [chickenType, piecesType, quantity, pieceDetails, prices, setValue, getValues]);
 
 
   const onSubmit = (values: OrderInput) => {
-    const deviceId = localStorage.getItem('deviceId');
-    const submissionData: OrderInput & { userId?: string, anonymousOrderIds?: string[] } = { 
+    const deviceId = overrideDeviceId || localStorage.getItem('deviceId');
+    const submissionData: OrderInput & { userId?: string, deviceId?: string } = { 
         ...values, 
         deviceId: deviceId || undefined 
     };
@@ -334,6 +326,12 @@ export default function OrderForm({ formLayout = 'continuous' }: { formLayout?: 
 
     startTransition(async () => {
       const result = await submitOrder(submissionData);
+
+      if (onSuccess) {
+          onSuccess(result);
+          return;
+      }
+      
       if (result.success && result.orderId) {
         toast({
           title: 'Success!',

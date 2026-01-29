@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,7 +9,7 @@ import type { Order as OrderType } from '@/lib/types';
 import type { FirestoreOrder } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { List, Loader2, Receipt, Download } from 'lucide-react';
+import { List, Loader2, Receipt, Download, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/hooks/use-user';
@@ -18,6 +19,9 @@ import OrderReceipt from './OrderReceipt';
 import html2canvas from 'html2canvas';
 import OrderStatusProgress from './OrderStatusProgress';
 import { Separator } from './ui/separator';
+import { submitOrder } from '@/lib/actions';
+import { useToast } from '@/hooks/use-toast';
+import type { OrderInput } from '@/lib/schema';
 
 
 function formatOrderItems(order: FirestoreOrder): string {
@@ -38,10 +42,14 @@ function formatOrderItems(order: FirestoreOrder): string {
 function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emptyState: React.ReactNode, isLoading: boolean }) {
     const receiptRef = useRef<HTMLDivElement>(null);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [reorderingId, setReorderingId] = useState<string | null>(null);
     
     const [selectedOrder, setSelectedOrder] = useState<OrderType | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
+    const { toast } = useToast();
+    const { user } = useUser();
 
     const handleDownload = async () => {
         if (!receiptRef.current || !selectedOrder) return;
@@ -67,6 +75,62 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
         setIsDetailsOpen(true);
     };
 
+    const handleOrderAgain = async (orderToCopy: OrderType | null) => {
+        if (!orderToCopy || reorderingId) return;
+
+        setReorderingId(orderToCopy.id);
+
+        const originalOrder = orderToCopy.fullOrder;
+
+        const newOrderData: OrderInput = {
+            chickenType: originalOrder.chickenType,
+            piecesType: originalOrder.piecesType,
+            quantity: originalOrder.quantity,
+            price: originalOrder.price,
+            pieceDetails: originalOrder.pieceDetails,
+            name: originalOrder.name,
+            phone: originalOrder.phone,
+            deliveryLocationType: originalOrder.deliveryLocationType,
+            school: originalOrder.school as any,
+            block: originalOrder.block,
+            room: originalOrder.room,
+            area: originalOrder.area as any,
+            street: originalOrder.street,
+            houseNumber: originalOrder.houseNumber,
+        };
+        
+        const deviceId = localStorage.getItem('deviceId');
+        const submissionData: OrderInput & { userId?: string, deviceId?: string } = {
+            ...newOrderData,
+            deviceId: deviceId || undefined,
+            userId: user?.uid,
+        };
+
+        const result = await submitOrder(submissionData);
+
+        if (result.success && result.orderId) {
+            toast({
+              title: 'Success!',
+              description: 'A new order has been placed based on your previous one.',
+            });
+
+            if (!user) {
+                const anonymousOrderIds = JSON.parse(localStorage.getItem('anonymousOrderIds') || '[]');
+                anonymousOrderIds.push(result.orderId);
+                localStorage.setItem('anonymousOrderIds', JSON.stringify(anonymousOrderIds));
+            }
+            setIsDetailsOpen(false);
+        } else {
+            toast({
+              variant: 'destructive',
+              title: 'Order Failed',
+              description: result.message || 'Could not place the new order.',
+            });
+        }
+        setReorderingId(null);
+    };
+
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center py-16">
@@ -85,31 +149,56 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
     return (
         <>
             <div className="space-y-4">
-            {sortedOrders.map(order => (
-                <Card key={order.id} onClick={() => handleOrderClick(order)} className="shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer">
-                    <CardHeader className="flex flex-row items-start justify-between pb-2">
-                        <div>
-                            <CardTitle className="text-lg font-bold truncate" style={{ maxWidth: '150px' }}>{order.id}</CardTitle>
-                            <p className="text-sm text-muted-foreground">{order.date}</p>
-                        </div>
-                        <Badge variant={
-                            order.status === 'Delivered' ? 'outline' :
-                            order.status === 'Pending' ? 'secondary' :
-                            'default'
-                        } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground')}>
-                            {order.status}
-                        </Badge>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <p className="font-semibold">{order.items}</p>
+            {sortedOrders.map(order => {
+                const isThisOrderReordering = reorderingId === order.id;
+                return (
+                    <Card key={order.id} onClick={() => handleOrderClick(order)} className="shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer">
+                        <CardHeader className="flex flex-row items-start justify-between pb-2">
+                            {order.status === 'Delivered' ? (
+                                <div>
+                                    <Button
+                                        size="sm"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOrderAgain(order);
+                                        }}
+                                        disabled={isThisOrderReordering || reorderingId !== null}
+                                        className="bg-primary hover:bg-primary/90"
+                                    >
+                                        {isThisOrderReordering ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <RotateCw className="mr-2 h-4 w-4" />
+                                        )}
+                                        Order Again
+                                    </Button>
+                                    <p className="text-sm text-muted-foreground mt-2">{order.date}</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <CardTitle className="text-lg font-bold truncate" style={{ maxWidth: '150px' }}>{order.id}</CardTitle>
+                                    <p className="text-sm text-muted-foreground">{order.date}</p>
+                                </div>
+                            )}
+                            <Badge variant={
+                                order.status === 'Delivered' ? 'outline' :
+                                order.status === 'Pending' ? 'secondary' :
+                                'default'
+                            } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground')}>
+                                {order.status}
+                            </Badge>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <p className="font-semibold">{order.items}</p>
+                                </div>
+                                <p className="text-xl font-bold text-primary">K{order.price.toFixed(2)}</p>
                             </div>
-                            <p className="text-xl font-bold text-primary">K{order.price.toFixed(2)}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
+                        </CardContent>
+                    </Card>
+                )
+            })}
             </div>
 
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
@@ -149,10 +238,20 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
                             </div>
                             <DialogFooter>
                                 {selectedOrder.status === 'Delivered' && (
-                                    <Button variant="outline" onClick={() => { setIsDetailsOpen(false); setIsReceiptOpen(true); }}>
-                                        <Receipt className="mr-2 h-4 w-4" />
-                                        View Receipt
-                                    </Button>
+                                    <>
+                                        <Button variant="outline" onClick={() => { setIsDetailsOpen(false); setIsReceiptOpen(true); }}>
+                                            <Receipt className="mr-2 h-4 w-4" />
+                                            View Receipt
+                                        </Button>
+                                        <Button onClick={() => handleOrderAgain(selectedOrder)} disabled={reorderingId !== null}>
+                                            {reorderingId === selectedOrder.id ? (
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <RotateCw className="mr-2 h-4 w-4" />
+                                            )}
+                                            Order Again
+                                        </Button>
+                                    </>
                                 )}
                             </DialogFooter>
                         </>
@@ -295,3 +394,5 @@ export function OrderHistory() {
     </Tabs>
   );
 }
+
+    

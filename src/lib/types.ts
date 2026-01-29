@@ -2,7 +2,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { OrderInput } from './schema';
 
-export type OrderStatus = 'Pending' | 'Confirmed' | 'Delivered';
+export type OrderStatus = 'Pending' | 'Confirmed' | 'Delivered' | 'Cancelled';
 
 export type UserRole = 'admin' | 'assistant' | 'customer';
 
@@ -144,7 +144,13 @@ export type DeliveryRecord = {
   id: string; // This will be the deviceId
   name: string;
   phone: string;
-  deliveryLocation: string;
+  deliveryLocationType: 'school' | 'off-campus';
+  school?: string;
+  block?: string;
+  room?: string;
+  area?: string;
+  street?: string;
+  houseNumber?: string;
   lastActionAt: Date;
   formattedLastActionAt: string;
 };
@@ -152,6 +158,12 @@ export type DeliveryRecord = {
 export type FirestoreDeliveryRecord = {
   name: string;
   phone: string;
-  deliveryLocation: string;
+  deliveryLocationType: 'school' | 'off-campus';
+  school?: string;
+  block?: string;
+  room?: string;
+  area?: string;
+  street?: string;
+  houseNumber?: string;
   lastActionAt: Timestamp;
 };

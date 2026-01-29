@@ -5,7 +5,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import type { AdminOrder } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Check, Loader2, Info, Trash2, Phone, Receipt, Download } from 'lucide-react';
+import { Check, Loader2, Info, Trash2, Phone, Receipt, Download, Ban, RotateCcw } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -152,7 +152,7 @@ function OrderReceiptAction({ order }: { order: AdminOrder }) {
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="flex-1 md:flex-none">
+                <Button variant="outline" size="sm">
                     <Receipt className="mr-2 h-4 w-4" />
                     Receipt
                 </Button>
@@ -183,7 +183,9 @@ function OrderReceiptAction({ order }: { order: AdminOrder }) {
 }
 
 function OrderActions({ order }: { order: AdminOrder }) {
-    const { confirmDelivery, markAsDelivered, deleteOrder } = useAdmin();
+    const { confirmDelivery, markAsDelivered, cancelOrder, processingOrder } = useAdmin();
+    const isProcessing = processingOrder === order.id;
+
     return (
         <div className="flex items-center justify-start gap-2">
             <OrderDetailsDialog order={order} />
@@ -191,8 +193,9 @@ function OrderActions({ order }: { order: AdminOrder }) {
             {order.status === 'Pending' && (
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button size="sm">
-                            <Check className="mr-2 h-4 w-4" /> Confirm Delivery
+                        <Button size="sm" disabled={isProcessing}>
+                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                            Confirm Delivery
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -220,8 +223,9 @@ function OrderActions({ order }: { order: AdminOrder }) {
             {order.status === 'Confirmed' && (
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                            <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
+                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                            Mark Delivered
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -248,25 +252,25 @@ function OrderActions({ order }: { order: AdminOrder }) {
 
              <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" disabled={order.status === 'Delivered'}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Drop Order
+                    <Button variant="destructive" size="icon" disabled={order.status === 'Delivered' || order.status === 'Cancelled' || isProcessing}>
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                        <span className="sr-only">Cancel Order</span>
                     </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Drop this order?</AlertDialogTitle>
+                        <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
                         <AlertDialogDescription>
-                           This will permanently delete the order for <span className="font-bold">{order.name}</span>. This is for cancellations and cannot be undone.
+                           This will move the order for <span className="font-bold">{order.name}</span> to the cancelled list. An admin can restore it or drop it later.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>Back</AlertDialogCancel>
                         <AlertDialogAction
                             className={cn(buttonVariants({ variant: "destructive" }))}
-                            onClick={() => deleteOrder(order.id)}
+                            onClick={() => cancelOrder(order.id)}
                         >
-                            Drop Order
+                            Cancel Order
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -276,19 +280,81 @@ function OrderActions({ order }: { order: AdminOrder }) {
     )
 }
 
+function CancelledOrderActions({ order }: { order: AdminOrder }) {
+    const { restoreOrder, dropOrder, processingOrder } = useAdmin();
+    const isProcessing = processingOrder === order.id;
+
+    return (
+        <div className="flex items-center justify-start gap-2">
+            <OrderDetailsDialog order={order} />
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="outline" disabled={isProcessing}>
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                        Restore
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Restore this order?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           This will move the order for <span className="font-bold">{order.name}</span> back to 'Pending'.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => restoreOrder(order.id)}
+                        >
+                            Restore Order
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={isProcessing}>
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                        Drop Order
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Drop this order permanently?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           This action cannot be undone and will permanently delete the order for <span className="font-bold">{order.name}</span>.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className={cn(buttonVariants({ variant: "destructive" }))}
+                            onClick={() => dropOrder(order.id)}
+                        >
+                            Drop Permanently
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    )
+}
+
 
 function OrderCard({ order }: { order: AdminOrder }) {
-    const { confirmDelivery, markAsDelivered, deleteOrder } = useAdmin();
+    const { confirmDelivery, markAsDelivered, cancelOrder, processingOrder } = useAdmin();
+    const isProcessing = processingOrder === order.id;
+
     return (
         <Card>
-            <CardHeader className="flex flex-row justify-between items-start">
+            <CardHeader className="flex flex-row justify-between items-start pb-4">
                 <div>
                     <CardTitle className="text-lg">{order.name}</CardTitle>
                     <CardDescription>{order.phone}</CardDescription>
                 </div>
                 <OrderDetailsDialog order={order} isCardVersion={true} />
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-0">
                  <div className="flex justify-between items-center">
                     <div>
                         <p className="font-semibold">Items:</p>
@@ -296,6 +362,7 @@ function OrderCard({ order }: { order: AdminOrder }) {
                     </div>
                      <Badge variant={
                         order.status === 'Delivered' ? 'outline' :
+                        order.status === 'Cancelled' ? 'destructive' :
                         order.status === 'Pending' ? 'secondary' :
                         'default'
                     } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground', "h-fit")}>
@@ -304,12 +371,13 @@ function OrderCard({ order }: { order: AdminOrder }) {
                 </div>
                 <p className="text-lg font-bold text-primary">K{order.price.toFixed(2)}</p>
             </CardContent>
-            <CardFooter className="flex flex-wrap justify-end gap-2">
+            <CardFooter className="flex flex-wrap justify-end gap-2 p-1 pt-0">
                 {order.status === 'Pending' && (
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button size="sm" className="flex-1">
-                                <Check className="mr-2 h-4 w-4" /> Confirm Delivery
+                            <Button size="sm" disabled={isProcessing}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                                Confirm Delivery
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -336,8 +404,9 @@ function OrderCard({ order }: { order: AdminOrder }) {
                  {order.status === 'Confirmed' && (
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700">
-                                <Check className="mr-2 h-4 w-4" /> Mark Delivered
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                                Mark Delivered
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -363,30 +432,108 @@ function OrderCard({ order }: { order: AdminOrder }) {
                 )}
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="flex-1" disabled={order.status === 'Delivered'}>
-                            <Trash2 className="mr-2 h-4 w-4" />
+                         <Button variant="destructive" size="icon" disabled={order.status === 'Delivered' || order.status === 'Cancelled' || isProcessing}>
+                            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                            <span className="sr-only">Cancel Order</span>
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                           This will move the order for <span className="font-bold">{order.name}</span> to the cancelled list. An admin can restore it or drop it later.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Back</AlertDialogCancel>
+                            <AlertDialogAction
+                                className={cn(buttonVariants({ variant: "destructive" }))}
+                                onClick={() => cancelOrder(order.id)}
+                            >
+                                Cancel Order
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                {order.status === 'Delivered' && <OrderReceiptAction order={order} />}
+            </CardFooter>
+        </Card>
+    );
+}
+
+function CancelledOrderCard({ order }: { order: AdminOrder }) {
+    const { restoreOrder, dropOrder, processingOrder } = useAdmin();
+    const isProcessing = processingOrder === order.id;
+
+    return (
+        <Card>
+            <CardHeader className="flex flex-row justify-between items-start pb-4">
+                <div>
+                    <CardTitle className="text-lg">{order.name}</CardTitle>
+                    <CardDescription>{order.phone}</CardDescription>
+                </div>
+                <OrderDetailsDialog order={order} isCardVersion={true} />
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0">
+                 <div className="flex justify-between items-center">
+                    <div>
+                        <p className="font-semibold">Items:</p>
+                        <p>{order.items}</p>
+                    </div>
+                     <Badge variant="destructive" className="h-fit">
+                        {order.status}
+                    </Badge>
+                </div>
+                <p className="text-lg font-bold text-primary">K{order.price.toFixed(2)}</p>
+            </CardContent>
+            <CardFooter className="flex flex-wrap justify-end gap-2 p-1 pt-0">
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="flex-1" disabled={isProcessing}>
+                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
+                            Restore
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Restore this order?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                            This will move the order for <span className="font-bold">{order.name}</span> back to 'Pending'.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => restoreOrder(order.id)}>
+                                Restore Order
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="flex-1" disabled={isProcessing}>
+                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                             Drop Order
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Drop this order?</AlertDialogTitle>
+                            <AlertDialogTitle>Drop this order permanently?</AlertDialogTitle>
                             <AlertDialogDescription>
-                            This will permanently delete the order for <span className="font-bold">{order.name}</span>. This is for cancellations and cannot be undone.
+                            This action cannot be undone and will permanently delete the order for <span className="font-bold">{order.name}</span>.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
                                 className={cn(buttonVariants({ variant: "destructive" }))}
-                                onClick={() => deleteOrder(order.id)}
+                                onClick={() => dropOrder(order.id)}
                             >
-                                Drop Order
+                                Drop Permanently
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                {order.status === 'Delivered' && <OrderReceiptAction order={order} />}
             </CardFooter>
         </Card>
     );
@@ -420,6 +567,7 @@ function OrderTable({ orders, showStatus }: { orders: AdminOrder[], showStatus?:
                             <TableCell>
                                 <Badge variant={
                                     order.status === 'Delivered' ? 'outline' :
+                                    order.status === 'Cancelled' ? 'destructive' :
                                     order.status === 'Pending' ? 'secondary' :
                                     'default'
                                 } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground')}>
@@ -438,14 +586,54 @@ function OrderTable({ orders, showStatus }: { orders: AdminOrder[], showStatus?:
     )
 }
 
+function CancelledOrderTable({ orders }: { orders: AdminOrder[] }) {
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {orders.map(order => (
+                    <TableRow key={order.id}>
+                        <TableCell>
+                            <div className="font-medium">{order.name}</div>
+                            <div className="text-sm text-muted-foreground">{order.phone}</div>
+                        </TableCell>
+                        <TableCell>
+                            {order.deliveryLocationType === 'school' ? order.school : order.area}
+                        </TableCell>
+                        <TableCell>{order.items}</TableCell>
+                        <TableCell>
+                            <Badge variant="destructive">
+                                {order.status}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">K{order.price.toFixed(2)}</TableCell>
+                        <TableCell>
+                            <CancelledOrderActions order={order} />
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    )
+}
 
 export default function OrdersDashboard() {
-  const { orders, isLoading } = useAdmin();
+  const { orders, isLoading, userRole } = useAdmin();
   const isMobile = useIsMobile();
   const [campusTypeFilter, setCampusTypeFilter] = useState('all'); // 'all', 'school', 'off-campus'
   const [locationFilter, setLocationFilter] = useState('all');
 
-  const openOrders = useMemo(() => orders.filter(o => o.status !== 'Delivered'), [orders]);
+  const openOrders = useMemo(() => orders.filter(o => o.status === 'Pending' || o.status === 'Confirmed'), [orders]);
+  const cancelledOrders = useMemo(() => orders.filter(o => o.status === 'Cancelled'), [orders]);
   const allOrdersSorted = useMemo(() => [...orders].sort((a,b) => b.date.getTime() - a.date.getTime()), [orders]);
 
   const filteredOpenOrders = useMemo(() => {
@@ -485,11 +673,17 @@ export default function OrdersDashboard() {
 
   return (
     <Tabs defaultValue="open-orders" className="w-full space-y-8">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="open-orders">
                 Open Orders
                 {openOrders.length > 0 && (
                     <Badge className="ml-2 h-5">{openOrders.length}</Badge>
+                )}
+            </TabsTrigger>
+            <TabsTrigger value="cancelled-orders">
+                {isMobile ? <Ban className="h-4 w-4" /> : 'Cancelled'}
+                {cancelledOrders.length > 0 && (
+                    <Badge variant="destructive" className="ml-2">{cancelledOrders.length}</Badge>
                 )}
             </TabsTrigger>
             <TabsTrigger value="all-orders">All Orders</TabsTrigger>
@@ -500,7 +694,7 @@ export default function OrdersDashboard() {
                     <CardTitle>Open Orders</CardTitle>
                     <CardDescription>Manage and fulfill pending and confirmed orders.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 p-4 pt-0">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="campus-type-filter">Filter by Type</Label>
@@ -552,13 +746,40 @@ export default function OrdersDashboard() {
                 </CardContent>
             </Card>
         </TabsContent>
+        <TabsContent value="cancelled-orders">
+             <Card>
+                <CardHeader>
+                    <CardTitle>Cancelled Orders</CardTitle>
+                    <CardDescription>Manage cancelled orders. Only admins can restore or permanently drop these orders.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                 {userRole === 'admin' ? (
+                    cancelledOrders.length > 0 ? (
+                        isMobile ? (
+                            <div className="space-y-4">
+                                {cancelledOrders.map(order => (
+                                    <CancelledOrderCard key={order.id} order={order} />
+                                ))}
+                            </div>
+                        ) : (
+                            <CancelledOrderTable orders={cancelledOrders} />
+                        )
+                    ) : (
+                        <p className="text-center text-muted-foreground py-8">No cancelled orders found.</p>
+                    )
+                 ) : (
+                    <p className="text-center text-muted-foreground py-8">Only admins can view this section.</p>
+                 )}
+                </CardContent>
+            </Card>
+        </TabsContent>
          <TabsContent value="all-orders">
              <Card>
                 <CardHeader>
                 <CardTitle>All Orders</CardTitle>
                 <CardDescription>View all orders that have ever been placed.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                  {allOrdersSorted.length > 0 ? (
                     isMobile ? (
                         <div className="space-y-4">
@@ -578,3 +799,5 @@ export default function OrdersDashboard() {
     </Tabs>
   );
 }
+
+    

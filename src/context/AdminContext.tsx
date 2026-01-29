@@ -75,9 +75,13 @@ interface AdminContextType {
     users: AdminUser[];
     deliveredRecords: DeliveryRecord[];
     droppedRecords: DeliveryRecord[];
+    userRole: UserRole | null;
     confirmDelivery: (orderId: string) => void;
     markAsDelivered: (orderId: string) => void;
-    deleteOrder: (orderId: string) => void;
+    cancelOrder: (orderId: string) => void;
+    restoreOrder: (orderId: string) => void;
+    dropOrder: (orderId: string) => void;
+    deleteRecord: (recordId: string) => Promise<void>;
     clearAllOrders: () => void;
     resetSlots: () => void;
     deliverySettings: DeliverySettings;
@@ -95,6 +99,7 @@ interface AdminContextType {
     isLoading: boolean;
     isSaving: boolean;
     saveAllSettings: () => void;
+    processingOrder: string | null;
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
@@ -112,6 +117,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [droppedRecords, setDroppedRecords] = useState<DeliveryRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [processingOrder, setProcessingOrder] = useState<string | null>(null);
     const { toast } = useToast();
     const { userRole } = useUser();
 
@@ -169,7 +175,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                         id: doc.id,
                         name: data.name,
                         phone: data.phone,
-                        deliveryLocation: data.deliveryLocation,
+                        deliveryLocationType: data.deliveryLocationType,
+                        school: data.school,
+                        block: data.block,
+                        room: data.room,
+                        area: data.area,
+                        street: data.street,
+                        houseNumber: data.houseNumber,
                         lastActionAt: data.lastActionAt.toDate(),
                         formattedLastActionAt: format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a'),
                     };
@@ -188,7 +200,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                         id: doc.id,
                         name: data.name,
                         phone: data.phone,
-                        deliveryLocation: data.deliveryLocation,
+                        deliveryLocationType: data.deliveryLocationType,
+                        school: data.school,
+                        block: data.block,
+                        room: data.room,
+                        area: data.area,
+                        street: data.street,
+                        houseNumber: data.houseNumber,
                         lastActionAt: data.lastActionAt.toDate(),
                         formattedLastActionAt: format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a'),
                     };
@@ -344,6 +362,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }, [toast, userRole]);
 
     const confirmDelivery = async (orderId: string) => {
+        setProcessingOrder(orderId);
         const orderDocRef = doc(db, 'orders', orderId);
         try {
             await updateDoc(orderDocRef, { status: 'Confirmed' });
@@ -357,10 +376,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 title: "Update Failed",
                 description: `Could not confirm order ${orderId}.`
             });
+        } finally {
+            setProcessingOrder(null);
         }
     };
 
     const markAsDelivered = async (orderId: string) => {
+        setProcessingOrder(orderId);
         const orderDocRef = doc(db, 'orders', orderId);
         const slotsCounterRef = doc(db, 'slots', 'live_counter');
         try {
@@ -380,19 +402,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
                 if (orderData.deviceId) {
                     const recordRef = doc(db, 'deliveredRecords', orderData.deviceId);
-                    const deliveryLocation = [
-                        orderData.school, 
-                        orderData.block, 
-                        orderData.room ? `Room ${orderData.room}` : '',
-                        orderData.area, 
-                        orderData.street, 
-                        orderData.houseNumber
-                    ].filter(Boolean).join(', ');
-
                     transaction.set(recordRef, {
                         name: orderData.name,
                         phone: orderData.phone,
-                        deliveryLocation: deliveryLocation,
+                        deliveryLocationType: orderData.deliveryLocationType,
+                        school: orderData.school || null,
+                        block: orderData.block || null,
+                        room: orderData.room || null,
+                        area: orderData.area || null,
+                        street: orderData.street || null,
+                        houseNumber: orderData.houseNumber || null,
                         lastActionAt: serverTimestamp(),
                     });
                 }
@@ -407,10 +426,53 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 title: "Update Failed",
                 description: `Could not update order ${orderId}.`
             });
+        } finally {
+            setProcessingOrder(null);
         }
     };
     
-    const deleteOrder = async (orderId: string) => {
+    const cancelOrder = async (orderId: string) => {
+        setProcessingOrder(orderId);
+        const orderDocRef = doc(db, 'orders', orderId);
+        try {
+            await updateDoc(orderDocRef, { status: 'Cancelled' });
+            toast({
+                title: "Order Cancelled",
+                description: `Order ${orderId} has been cancelled.`
+            });
+        } catch (error) {
+             toast({
+                variant: 'destructive',
+                title: "Update Failed",
+                description: `Could not cancel order ${orderId}.`
+            });
+        } finally {
+            setProcessingOrder(null);
+        }
+    };
+
+    const restoreOrder = async (orderId: string) => {
+        setProcessingOrder(orderId);
+        const orderDocRef = doc(db, 'orders', orderId);
+        try {
+            await updateDoc(orderDocRef, { status: 'Pending' });
+            toast({
+                title: "Order Restored",
+                description: `Order ${orderId} has been restored to Pending.`
+            });
+        } catch (error) {
+             toast({
+                variant: 'destructive',
+                title: "Update Failed",
+                description: `Could not restore order ${orderId}.`
+            });
+        } finally {
+            setProcessingOrder(null);
+        }
+    };
+    
+    const dropOrder = async (orderId: string) => {
+        setProcessingOrder(orderId);
         const orderDocRef = doc(db, 'orders', orderId);
         const slotsCounterRef = doc(db, 'slots', 'live_counter');
         try {
@@ -424,39 +486,58 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 
                 if (orderData.deviceId) {
                     const recordRef = doc(db, 'droppedRecords', orderData.deviceId);
-                    const deliveryLocation = [
-                        orderData.school, 
-                        orderData.block, 
-                        orderData.room ? `Room ${orderData.room}` : '',
-                        orderData.area, 
-                        orderData.street, 
-                        orderData.houseNumber
-                    ].filter(Boolean).join(', ');
-                    
                     transaction.set(recordRef, {
                         name: orderData.name,
                         phone: orderData.phone,
-                        deliveryLocation: deliveryLocation,
+                        deliveryLocationType: orderData.deliveryLocationType,
+                        school: orderData.school || null,
+                        block: orderData.block || null,
+                        room: orderData.room || null,
+                        area: orderData.area || null,
+                        street: orderData.street || null,
+                        houseNumber: orderData.houseNumber || null,
                         lastActionAt: serverTimestamp(),
                     });
                 }
 
                 transaction.delete(orderDocRef);
 
-                if (['Pending', 'Confirmed'].includes(orderData.status)) {
+                // A slot was taken and now needs to be freed, unless it was already delivered.
+                if (orderData.status !== 'Delivered') {
                     transaction.update(slotsCounterRef, { count: increment(-1) });
                 }
             });
             toast({
                 title: "Order Dropped",
-                description: `Order ${orderId} has been successfully deleted.`
+                description: `Order ${orderId} has been permanently deleted.`
             });
         } catch (error) {
             toast({
                 variant: 'destructive',
-                title: "Delete Failed",
-                description: `Could not delete order ${orderId}.`
+                title: "Drop Failed",
+                description: `Could not drop order ${orderId}.`
             });
+        } finally {
+            setProcessingOrder(null);
+        }
+    };
+
+    const deleteRecord = async (recordId: string) => {
+        const deliveredRecordRef = doc(db, 'deliveredRecords', recordId);
+        const droppedRecordRef = doc(db, 'droppedRecords', recordId);
+        try {
+            const batch = writeBatch(db);
+            batch.delete(deliveredRecordRef);
+            batch.delete(droppedRecordRef);
+            await batch.commit();
+        } catch (error) {
+            console.error(`Error deleting record ${recordId} from collections:`, error);
+            toast({
+                variant: 'destructive',
+                title: "Deletion Failed",
+                description: "Could not remove the customer record(s).",
+            });
+            throw error;
         }
     };
     
@@ -600,9 +681,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             users,
             deliveredRecords,
             droppedRecords,
+            userRole,
             confirmDelivery,
-            markAsDelivered, 
-            deleteOrder,
+            markAsDelivered,
+            cancelOrder,
+            restoreOrder,
+            dropOrder,
+            deleteRecord,
             clearAllOrders,
             resetSlots,
             deliverySettings,
@@ -620,6 +705,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             isLoading,
             isSaving,
             saveAllSettings,
+            processingOrder,
          }}>
             {children}
         </AdminContext.Provider>
