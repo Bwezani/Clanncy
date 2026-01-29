@@ -4,12 +4,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { format } from 'date-fns';
+import Link from 'next/link';
 import { db } from '@/lib/firebase/config';
 import type { Order as OrderType } from '@/lib/types';
 import type { FirestoreOrder } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { List, Loader2, Receipt, Download, RotateCw } from 'lucide-react';
+import { Plus, List, Loader2, Receipt, Download, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/hooks/use-user';
@@ -162,7 +163,7 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
                                             e.stopPropagation();
                                             handleOrderAgain(order);
                                         }}
-                                        disabled={isThisOrderReordering || reorderingId !== null}
+                                        disabled={reorderingId !== null}
                                         className="bg-primary hover:bg-primary/90"
                                     >
                                         {isThisOrderReordering ? (
@@ -295,6 +296,7 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
 export function OrderHistory() {
   const [orders, setOrders] = useState<FirestoreOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const { user } = useUser();
 
   useEffect(() => {
@@ -355,44 +357,75 @@ export function OrderHistory() {
   const pendingOrders = formattedOrders.filter(o => o.status === 'Pending' || o.status === 'Confirmed');
   const completedOrders = formattedOrders.filter(o => o.status === 'Delivered');
 
+  // On initial load, if pending is empty but history has items, switch to history.
+  useEffect(() => {
+    if (!isLoading && activeTab === 'pending' && pendingOrders.length === 0 && completedOrders.length > 0) {
+      setActiveTab('history');
+    }
+  }, [isLoading, activeTab, pendingOrders.length, completedOrders.length]);
+
+  // If user is on an empty pending tab, switch back to history after a minute.
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (activeTab === 'pending' && !isLoading && pendingOrders.length === 0 && completedOrders.length > 0) {
+        timer = setTimeout(() => {
+            setActiveTab('history');
+        }, 60000); // 1 minute
+    }
+
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [activeTab, isLoading, pendingOrders.length, completedOrders.length]);
+
   return (
-    <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="pending">Pending Reservations</TabsTrigger>
-            <TabsTrigger value="history">Reservation History</TabsTrigger>
-        </TabsList>
-        <TabsContent value="pending" className="mt-6">
-            <OrderList
-                orders={pendingOrders}
-                isLoading={isLoading}
-                emptyState={
-                    <div className="text-center py-16 border-2 border-dashed rounded-lg bg-card">
-                        <List className="mx-auto h-12 w-12 text-foreground/30" />
-                        <h3 className="mt-4 text-lg font-medium">No pending orders</h3>
-                        <p className="mt-1 text-sm text-foreground/60">
-                            You have no pending reservations. Start by ordering some chicken!
-                        </p>
-                    </div>
-                }
-            />
-        </TabsContent>
-        <TabsContent value="history" className="mt-6">
-            <OrderList
-                orders={completedOrders}
-                isLoading={isLoading}
-                emptyState={
-                    <div className="text-center py-16 border-2 border-dashed rounded-lg bg-card">
-                        <List className="mx-auto h-12 w-12 text-foreground/30" />
-                        <h3 className="mt-4 text-lg font-medium">No completed orders</h3>
-                        <p className="mt-1 text-sm text-foreground/60">
-                           Your past orders will appear here.
-                        </p>
-                    </div>
-                }
-            />
-        </TabsContent>
-    </Tabs>
+    <>
+      <div className="mb-4">
+        <Button asChild size="lg" className="w-full">
+          <Link href="/">
+            <Plus className="mr-2 h-5 w-5" />
+            Make a New Order
+          </Link>
+        </Button>
+      </div>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'history')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="pending">Pending Reservations</TabsTrigger>
+              <TabsTrigger value="history">Reservation History</TabsTrigger>
+          </TabsList>
+          <TabsContent value="pending" className="mt-6">
+              <OrderList
+                  orders={pendingOrders}
+                  isLoading={isLoading}
+                  emptyState={
+                      <div className="text-center py-16 border-2 border-dashed rounded-lg bg-card">
+                          <List className="mx-auto h-12 w-12 text-foreground/30" />
+                          <h3 className="mt-4 text-lg font-medium">No pending orders</h3>
+                          <p className="mt-1 text-sm text-foreground/60">
+                              You have no pending reservations. Start by ordering some chicken!
+                          </p>
+                      </div>
+                  }
+              />
+          </TabsContent>
+          <TabsContent value="history" className="mt-6">
+              <OrderList
+                  orders={completedOrders}
+                  isLoading={isLoading}
+                  emptyState={
+                      <div className="text-center py-16 border-2 border-dashed rounded-lg bg-card">
+                          <List className="mx-auto h-12 w-12 text-foreground/30" />
+                          <h3 className="mt-4 text-lg font-medium">No completed orders</h3>
+                          <p className="mt-1 text-sm text-foreground/60">
+                             Your past orders will appear here.
+                          </p>
+                      </div>
+                  }
+              />
+          </TabsContent>
+      </Tabs>
+    </>
   );
 }
-
-    

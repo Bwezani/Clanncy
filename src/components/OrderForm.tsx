@@ -716,6 +716,42 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
       </section>
   );
 
+  const SlotIndicator = (
+    <>
+      {deliverySettings?.isSlotsEnabled && !isLoadingSettings && deliverySettings.totalSlots > 0 && (
+          <div className="flex items-center justify-center gap-2 rounded-md bg-secondary border border-secondary/80 p-3 text-sm text-secondary-foreground">
+              <Ticket className="h-5 w-5" />
+              <span
+                  className={cn(
+                      "font-medium",
+                      slotsLeft <= 10 && slotsLeft > 0 && "animate-pulse text-destructive font-bold"
+                  )}
+              >
+                  {slotsLeft > 0 ? `${slotsLeft} slots left` : "No slots left!"}
+              </span>
+          </div>
+      )}
+    </>
+  );
+
+  const DeliveryDateIndicator = (
+    <>
+      {deliverySettings?.nextDeliveryDate && (
+          <div className="flex items-center justify-center gap-2 rounded-md bg-secondary border border-secondary/80 p-3 text-sm text-secondary-foreground">
+              <CalendarClock className="h-5 w-5" />
+              <span>Next Deliveries on <b>{format(deliverySettings.nextDeliveryDate, "do MMMM, yyyy")}</b></span>
+          </div>
+      )}
+    </>
+  );
+
+  const infoIndicatorsJsx = (
+    <div className="space-y-2">
+        {SlotIndicator}
+        {DeliveryDateIndicator}
+    </div>
+  );
+
   const SubmitSection = (
       <div className="space-y-4">
             <Button
@@ -735,27 +771,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
                 'Reserve Your Chicken'
               )}
             </Button>
-
-            {deliverySettings?.isSlotsEnabled && !isLoadingSettings && deliverySettings.totalSlots > 0 && (
-                <div className="flex items-center justify-center gap-2 rounded-md bg-secondary border border-secondary/80 p-3 text-sm text-secondary-foreground">
-                    <Ticket className="h-5 w-5" />
-                    <span
-                        className={cn(
-                            "font-medium",
-                            slotsLeft <= 10 && slotsLeft > 0 && "animate-pulse text-destructive font-bold"
-                        )}
-                    >
-                        {slotsLeft > 0 ? `${slotsLeft} slots left` : "No slots left!"}
-                    </span>
-                </div>
-            )}
-
-            {deliverySettings?.nextDeliveryDate && (
-                <div className="flex items-center justify-center gap-2 rounded-md bg-secondary border border-secondary/80 p-3 text-sm text-secondary-foreground">
-                    <CalendarClock className="h-5 w-5" />
-                    <span>Next Deliveries on <b>{format(deliverySettings.nextDeliveryDate, "do MMMM, yyyy")}</b></span>
-                </div>
-            )}
+            {infoIndicatorsJsx}
         </div>
   );
 
@@ -777,19 +793,22 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
               <Info className="h-5 w-5 text-accent" />
               <span>Note: All orders are pay on delivery.</span>
             </div>
-            <div className="relative">
+            <div>
               {currentStep === 'chicken' && (
                   <div className="animate-in fade-in-0 slide-in-from-left-20 duration-500">
                     {ChickenSection}
-                    <Button
-                      type="button"
-                      size="lg"
-                      className="w-full mt-8"
-                      disabled={!isChickenSectionComplete}
-                      onClick={() => setCurrentStep('delivery')}
-                    >
-                      Enter Delivery Details <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
+                    <div className="mt-8 space-y-4">
+                      <Button
+                        type="button"
+                        size="lg"
+                        className="w-full"
+                        disabled={!isChickenSectionComplete}
+                        onClick={() => setCurrentStep('delivery')}
+                      >
+                        Enter Delivery Details <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                      {SlotIndicator}
+                    </div>
                   </div>
                 )}
                 {currentStep === 'delivery' && (

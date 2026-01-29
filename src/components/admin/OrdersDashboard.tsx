@@ -5,7 +5,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import type { AdminOrder } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Check, Loader2, Info, Trash2, Phone, Receipt, Download, Ban, RotateCcw } from 'lucide-react';
+import { Check, Loader2, Info, Trash2, Phone, Receipt, Download, Ban, RotateCcw, Package, List, BookMarked } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -44,6 +44,7 @@ import { universitySchema, lusakaTownsSchema } from '@/lib/schema';
 import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import OrderReceipt from '../OrderReceipt';
+import Link from 'next/link';
 
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg
@@ -673,21 +674,29 @@ export default function OrdersDashboard() {
 
   return (
     <Tabs defaultValue="open-orders" className="w-full space-y-8">
-        <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="open-orders">
-                Open Orders
-                {openOrders.length > 0 && (
-                    <Badge className="ml-2 h-5">{openOrders.length}</Badge>
-                )}
-            </TabsTrigger>
-            <TabsTrigger value="cancelled-orders">
-                {isMobile ? <Ban className="h-4 w-4" /> : 'Cancelled'}
-                {cancelledOrders.length > 0 && (
-                    <Badge variant="destructive" className="ml-2">{cancelledOrders.length}</Badge>
-                )}
-            </TabsTrigger>
-            <TabsTrigger value="all-orders">All Orders</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+            <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="open-orders">
+                    {isMobile ? <Package className="h-5 w-5" /> : 'Open Orders'}
+                    {openOrders.length > 0 && (
+                        <Badge className="ml-2 h-5">{openOrders.length}</Badge>
+                    )}
+                </TabsTrigger>
+                <TabsTrigger value="cancelled-orders">
+                    {isMobile ? <Ban className="h-5 w-5" /> : 'Cancelled'}
+                    {cancelledOrders.length > 0 && (
+                        <Badge variant="destructive" className="ml-2">{cancelledOrders.length}</Badge>
+                    )}
+                </TabsTrigger>
+                <TabsTrigger value="all-orders">{isMobile ? <List className="h-5 w-5" /> : 'All Orders'}</TabsTrigger>
+            </TabsList>
+             <Button asChild variant="outline" className="w-full sm:w-auto shrink-0">
+                <Link href="/deliveries/records">
+                    <BookMarked className="mr-2 h-4 w-4" />
+                    View Records
+                </Link>
+            </Button>
+        </div>
         <TabsContent value="open-orders">
              <Card>
                 <CardHeader>
@@ -799,5 +808,3 @@ export default function OrdersDashboard() {
     </Tabs>
   );
 }
-
-    
