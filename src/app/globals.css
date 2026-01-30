@@ -23,7 +23,7 @@
     --border: 33 25% 80%;
     --input: 33 25% 82%;
     --ring: 23 79% 43%;
-    --radius: 0.5rem;
+    --radius: 1.5rem;
 
     --sidebar-background: 43 40% 96%;
     --sidebar-foreground: 24 20% 20%;
@@ -54,6 +54,7 @@
     --border: 24 10% 20%;
     --input: 24 10% 20%;
     --ring: 23 79% 50%;
+    --radius: 1.5rem;
 
     --sidebar-background: 24 10% 8%;
     --sidebar-foreground: 43 30% 85%;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -13,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LogIn, Mail, KeyRound, Loader2, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, KeyRound, Loader2, AlertCircle, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { signInWithEmail, signUpWithEmail } from '@/lib/firebase/auth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -77,18 +76,23 @@ export function LoginSignUpDialog({ isMobile = false, onAuthSuccess }: { isMobil
   }
 
 
-  const TriggerButton = (
-    <Button
-      variant={isMobile ? 'outline' : 'ghost'}
-      className={cn(
-        !isMobile && 'text-foreground/70 hover:text-foreground',
-        isMobile && 'w-full text-lg justify-start p-2 h-auto'
-      )}
-    >
-      <LogIn className={cn('h-5 w-5', isMobile ? 'mr-3' : 'mr-2')} />
-      Login / Sign Up
-    </Button>
-  );
+    const TriggerButton = isMobile ? (
+        <Button variant="ghost" className="w-full flex items-center justify-start gap-3 rounded-lg px-3 py-3 text-card-foreground transition-all hover:bg-secondary">
+            <LogIn className="h-6 w-6 text-muted-foreground"/>
+            <div className="flex-1 text-left">
+                <span className="font-medium">Login / Sign Up</span>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Button>
+    ) : (
+        <Button
+            variant="ghost"
+            className="text-foreground/70 hover:text-foreground"
+        >
+            <LogIn className="h-5 w-5 mr-2" />
+            Login / Sign Up
+        </Button>
+    );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

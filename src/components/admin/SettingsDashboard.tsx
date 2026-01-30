@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -251,7 +250,7 @@ export default function SettingsDashboard() {
         <Card>
             <CardHeader>
                 <CardTitle>Homepage Settings</CardTitle>
-                <CardDescription>Set the main title, subtitle and images on the homepage.</CardDescription>
+                <CardDescription>Set the main title, subtitle, images, and animations on the homepage.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                  <div className="space-y-2">
@@ -313,6 +312,20 @@ export default function SettingsDashboard() {
                         />
                     </div>
                 </div>
+                <Separator />
+                 <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="bounce-animation-switch" className="text-base">Enable Hero Section Animation</Label>
+                        <p className="text-sm text-muted-foreground">
+                           Animate the hero section on the homepage when the page loads.
+                        </p>
+                    </div>
+                    <Switch
+                        id="bounce-animation-switch"
+                        checked={homepage.isBounceAnimationEnabled ?? true}
+                        onCheckedChange={(checked) => setHomepage({ ...homepage, isBounceAnimationEnabled: checked })}
+                    />
+                </div>
             </CardContent>
         </Card>
 
@@ -364,19 +377,6 @@ export default function SettingsDashboard() {
                         id="choose-pieces-switch"
                         checked={prices.isChoosePiecesEnabled}
                         onCheckedChange={(checked) => setPrices({ ...prices, isChoosePiecesEnabled: checked })}
-                    />
-                </div>
-                 <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                        <Label htmlFor="bounce-animation-switch" className="text-base">Enable Form Bounce Animation</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Animate form sections to guide the user.
-                        </p>
-                    </div>
-                    <Switch
-                        id="bounce-animation-switch"
-                        checked={homepage.isBounceAnimationEnabled ?? true}
-                        onCheckedChange={(checked) => setHomepage({ ...homepage, isBounceAnimationEnabled: checked })}
                     />
                 </div>
             </CardContent>

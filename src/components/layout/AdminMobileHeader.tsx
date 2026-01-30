@@ -3,43 +3,60 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { BarChart, Home, Menu, Package, Settings, Smartphone, Users } from "lucide-react";
+import { BarChart, Home, Menu, Package, Settings, Smartphone, Users, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import React from 'react';
 
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "../ThemeToggle";
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../ui/sheet';
+import { Separator } from '../ui/separator';
+import { CustomerServiceDialog } from '../CustomerServiceDialog';
 
-
-export const navLinks = [
+export const adminNavGroups = [
     {
-        href: '/admin',
-        label: 'Analytics',
-        icon: BarChart
+        links: [
+            {
+                href: '/admin',
+                label: 'Analytics',
+                icon: BarChart,
+                subtitle: 'View sales and trends'
+            },
+        ]
     },
     {
-        href: '/admin/orders',
-        label: 'Orders',
-        icon: Package
+        links: [
+            {
+                href: '/admin/orders',
+                label: 'Orders',
+                icon: Package,
+                subtitle: 'Manage and fulfill orders'
+            },
+        ]
     },
     {
-        href: '/admin/users',
-        label: 'Users',
-        icon: Users
-    },
-    {
-        href: '/admin/settings',
-        label: 'Settings',
-        icon: Settings
-    },
-    {
-        href: '/admin/devices',
-        label: 'Devices',
-        icon: Smartphone
+        links: [
+             {
+                href: '/admin/users',
+                label: 'Users',
+                icon: Users,
+            },
+            {
+                href: '/admin/settings',
+                label: 'Settings',
+                icon: Settings,
+            },
+            {
+                href: '/admin/devices',
+                label: 'Devices',
+                icon: Smartphone,
+            }
+        ]
     }
-]
+];
+
 
 export default function AdminMobileHeader() {
     const pathname = usePathname();
@@ -66,8 +83,8 @@ export default function AdminMobileHeader() {
                             <span className="sr-only">Open Menu</span>
                         </Button>
                     </SheetTrigger>
-                    <SheetContent side="right">
-                        <SheetHeader>
+                    <SheetContent side="right" className="bg-background flex flex-col p-0">
+                        <SheetHeader className="p-4 border-b">
                             <SheetTitle>
                                 <Link href="/" className="flex items-center gap-2 font-headline" onClick={handleLinkClick}>
                                     <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={28} height={28} />
@@ -77,35 +94,54 @@ export default function AdminMobileHeader() {
                                 </Link>
                             </SheetTitle>
                         </SheetHeader>
-                        <nav className="grid gap-6 text-lg font-medium mt-8">
-                             {navLinks.map((link) => {
-                                const isActive = pathname === link.href;
-                                return (
-                                    <Link
-                                        key={link.href}
-                                        href={link.href}
-                                        onClick={handleLinkClick}
-                                        className={cn(
-                                            "flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground",
-                                            isActive && "text-foreground"
-                                        )}
-                                    >
-                                        <link.icon className="h-5 w-5" />
-                                        {link.label}
-                                    </Link>
-                                )
-                            })}
-                            <div className="border-t pt-6 mt-6 grid gap-6">
-                                <Link
+                        <nav className="flex flex-col gap-3 flex-grow p-4 overflow-y-auto">
+                             {adminNavGroups.map((group, groupIndex) => (
+                                <div key={groupIndex} className="bg-card rounded-xl p-2 space-y-1 shadow-sm border">
+                                    {group.links.map((link, linkIndex) => {
+                                        const isActive = pathname === link.href;
+                                        const Icon = link.icon;
+                                        return (
+                                            <React.Fragment key={link.href}>
+                                                <Link
+                                                    href={link.href}
+                                                    onClick={handleLinkClick}
+                                                    className={cn(
+                                                        "flex items-center gap-3 rounded-lg px-3 py-3 text-card-foreground transition-all hover:bg-secondary",
+                                                        isActive && "bg-primary/10 text-primary"
+                                                    )}
+                                                >
+                                                    {Icon && <Icon className="h-6 w-6 text-muted-foreground" />}
+                                                    <div className="flex-1">
+                                                        <span className={cn("font-medium", isActive && "font-semibold")}>{link.label}</span>
+                                                        {link.subtitle && <p className="text-sm text-muted-foreground">{link.subtitle}</p>}
+                                                    </div>
+                                                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                                </Link>
+                                                {linkIndex < group.links.length - 1 && <Separator className="mx-3 my-0 bg-border/60" />}
+                                            </React.Fragment>
+                                        )
+                                    })}
+                                </div>
+                            ))}
+                        </nav>
+                        <div className="border-t p-4 mt-auto space-y-4">
+                           <div className="bg-card rounded-xl p-2 space-y-1 shadow-sm border">
+                               <CustomerServiceDialog isMobile={true} />
+                           </div>
+                           <div className="bg-card rounded-xl p-2 space-y-1 shadow-sm border">
+                               <Link
                                     href="/"
                                     onClick={handleLinkClick}
-                                    className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+                                    className="flex items-center gap-3 rounded-lg px-3 py-3 text-card-foreground transition-all hover:bg-secondary"
                                 >
-                                    <Home className="h-5 w-5" />
-                                    Back to Storefront
+                                    <Home className="h-6 w-6 text-muted-foreground" />
+                                    <div className="flex-1">
+                                        <span className="font-medium">Back to Storefront</span>
+                                    </div>
+                                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
                                 </Link>
                             </div>
-                        </nav>
+                        </div>
                     </SheetContent>
                 </Sheet>
             </div>

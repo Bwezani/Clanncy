@@ -3,8 +3,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useMemo } from 'react';
-import { Menu, LayoutDashboard, LogOut, Package } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Menu, LayoutDashboard, LogOut, Package, ChevronRight, ShoppingBag, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '../ThemeToggle';
@@ -14,10 +14,12 @@ import { useUser } from '@/hooks/use-user';
 import { signOut } from '@/lib/firebase/auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { Separator } from '../ui/separator';
+import { CustomerServiceDialog } from '../CustomerServiceDialog';
 
 const allNavLinks = [
-    { href: '/', label: 'Order Now' },
-    { href: '/order-history', label: 'Order History' },
+    { href: '/', label: 'Order Now', icon: ShoppingBag },
+    { href: '/order-history', label: 'Order History', icon: History },
     { href: '/deliveries', label: 'Deliveries', icon: Package, for: ['assistant', 'admin'] },
     { href: '/admin', label: 'Admin', icon: LayoutDashboard, for: ['admin'] },
 ]
@@ -48,7 +50,7 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-40 border-b">
+    <header className="bg-background/80 backdrop-blur-sm sticky top-0 z-40 border-x border-b rounded-b-lg">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         <Link href="/" className="flex items-center gap-2 font-headline" onClick={handleLinkClick}>
           <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={28} height={28} />
@@ -97,8 +99,8 @@ export default function Header() {
                         <span className="sr-only">Open menu</span>
                     </Button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-full max-w-sm">
-                    <SheetHeader>
+                <SheetContent side="right" className="w-full max-w-sm p-0 flex flex-col bg-background">
+                    <SheetHeader className="p-4 border-b">
                         <SheetTitle>
                            <Link href="/" className="flex items-center gap-2 font-headline" onClick={handleLinkClick}>
                                 <Image src="https://i.postimg.cc/yN0HGxfT/388466-removebg-preview.png" alt="Curbside Logo" width={28} height={28} />
@@ -108,34 +110,50 @@ export default function Header() {
                             </Link>
                         </SheetTitle>
                     </SheetHeader>
-                    <div className="flex flex-col gap-4 pt-10">
-                    {navLinks.map(link => {
-                        const isActive = pathname === link.href;
-                        return (
-                            <Link
-                                key={link.href}
-                                href={link.href}
-                                onClick={handleLinkClick}
-                                className={cn(
-                                    "text-lg font-medium transition-colors flex items-center gap-3 p-2 rounded-md",
-                                    isActive ? "bg-muted text-primary" : "text-foreground/80 hover:text-foreground hover:bg-muted"
-                                )}
-                            >
-                                {link.icon && <link.icon className="h-5 w-5" />}
-                                {link.label}
-                            </Link>
-                        )
-                    })}
-                    <div className="border-t pt-4 mt-4">
-                        {user ? (
-                             <Button variant="outline" onClick={() => { signOut(); handleLinkClick(); }} className="w-full text-lg justify-start p-2 h-auto">
-                                <LogOut className="mr-3 h-5 w-5"/>
-                                Logout
-                            </Button>
-                        ) : (
-                            <LoginSignUpDialog isMobile={true} onAuthSuccess={handleLinkClick} />
-                        )}
-                    </div>
+                    <nav className="flex-grow p-4 space-y-3 overflow-y-auto">
+                        <div className="bg-card rounded-xl p-2 space-y-1 shadow-sm border">
+                            {navLinks.map((link, index) => {
+                                const isActive = pathname === link.href;
+                                const Icon = link.icon;
+                                return (
+                                    <React.Fragment key={link.href}>
+                                        <Link
+                                            href={link.href}
+                                            onClick={handleLinkClick}
+                                            className={cn(
+                                                "flex items-center gap-3 rounded-lg px-3 py-3 text-card-foreground transition-all hover:bg-secondary",
+                                                isActive && "bg-primary/10 text-primary"
+                                            )}
+                                        >
+                                            {Icon ? <Icon className="h-6 w-6 text-muted-foreground" /> : <div className="h-6 w-6" />}
+                                            <div className="flex-1">
+                                                <span className={cn("font-medium", isActive && "font-semibold")}>{link.label}</span>
+                                            </div>
+                                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                        </Link>
+                                        {index < navLinks.length - 1 && <Separator className="mx-3 my-0 bg-border/60" />}
+                                    </React.Fragment>
+                                )
+                            })}
+                        </div>
+                    </nav>
+                    <div className="border-t p-4 mt-auto space-y-4">
+                        <div className="bg-card rounded-xl p-2 shadow-sm border">
+                           <CustomerServiceDialog isMobile={true} />
+                        </div>
+                        <div className="bg-card rounded-xl p-2 shadow-sm border">
+                            {user ? (
+                                <Button variant="ghost" onClick={() => { signOut(); handleLinkClick(); }} className="w-full flex items-center justify-start gap-3 rounded-lg px-3 py-3 text-card-foreground transition-all hover:bg-secondary">
+                                    <LogOut className="h-6 w-6 text-muted-foreground"/>
+                                    <div className="flex-1 text-left">
+                                        <span className="font-medium">Logout</span>
+                                    </div>
+                                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                </Button>
+                            ) : (
+                                <LoginSignUpDialog isMobile={true} onAuthSuccess={handleLinkClick} />
+                            )}
+                        </div>
                     </div>
                 </SheetContent>
             </Sheet>

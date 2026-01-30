@@ -40,7 +40,7 @@ export default function RootLayout({
             <DeviceIdManager />
             <div id="root-layout">
               <Header />
-              <main className="flex-grow container mx-auto px-0 sm:px-4 md:px-6 py-8 md:py-12">
+              <main className="flex-grow container mx-auto px-0 sm:px-4 md:px-6 py-4 md:py-6">
               {children}
               </main>
               <Footer />
