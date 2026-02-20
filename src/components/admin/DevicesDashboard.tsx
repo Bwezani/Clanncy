@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { AdminDevice } from "@/lib/types";
@@ -12,8 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Loader2, Smartphone } from "lucide-react";
+import { Smartphone } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Loader } from "@/components/ui/loader";
 
 function DeviceCard({ device }: { device: AdminDevice }) {
     return (
@@ -63,7 +63,7 @@ export default function DevicesDashboard() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <Loader />
             </div>
         )
     }

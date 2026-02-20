@@ -1,10 +1,9 @@
-
 'use client';
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
-import { Loader2 } from 'lucide-react';
+import { Loader } from '@/components/ui/loader';
 import { AdminProvider } from "@/context/AdminContext";
 
 export default function DeliveriesLayout({
@@ -26,7 +25,7 @@ export default function DeliveriesLayout({
     if (isLoading || !isAuthorized) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                <Loader />
             </div>
         );
     }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAdmin } from "@/context/AdminContext";
@@ -18,9 +17,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "../ui/button";
-import { Loader2, MoreHorizontal, Users } from "lucide-react";
+import { MoreHorizontal, Users } from "lucide-react";
 import type { AdminUser, UserRole } from "@/lib/types";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Loader } from '@/components/ui/loader';
 
 const roleHierarchy: UserRole[] = ['admin', 'assistant', 'customer'];
 
@@ -105,7 +105,7 @@ export default function UsersDashboard() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <Loader />
             </div>
         )
     }

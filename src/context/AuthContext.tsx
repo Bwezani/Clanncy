@@ -1,12 +1,11 @@
-
 'use client';
 
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/config';
-import { Loader2 } from 'lucide-react';
 import type { UserRole } from '@/lib/types';
+import { Loader } from '@/components/ui/loader';
 
 interface AuthContextType {
   user: User | null;
@@ -107,7 +106,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   if (isLoading) {
     return (
         <div className="flex justify-center items-center h-screen">
-            <Loader2 className="h-16 w-16 animate-spin text-primary" />
+            <Loader />
         </div>
     )
   }

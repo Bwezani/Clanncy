@@ -1,12 +1,12 @@
 
 'use server';
 
-import { orderSchema, type OrderInput } from '@/lib/schema';
+import { orderSchema, genericOrderSchema, type OrderInput, type GenericOrderInput } from '@/lib/schema';
 import { db } from './firebase/config';
 import { collection, doc, serverTimestamp, runTransaction, increment } from 'firebase/firestore';
 
-export async function submitOrder(data: OrderInput & { userId?: string }) {
-  const validation = orderSchema.safeParse(data);
+async function performOrderSubmission(data: any, schema: any, productType: 'chicken' | 'generic') {
+  const validation = schema.safeParse(data);
 
   if (!validation.success) {
     console.error('Validation failed:', validation.error.flatten().fieldErrors);
@@ -38,12 +38,12 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
             }
         }
 
-        // If we are here, a slot is available or slots are not enabled.
         const newOrderRef = doc(collection(db, "orders"));
         newOrderId = newOrderRef.id;
 
         const orderData: any = {
             ...validation.data,
+            productType,
             createdAt: serverTimestamp(),
             status: 'Pending',
         };
@@ -53,7 +53,6 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
 
         transaction.set(newOrderRef, orderData);
 
-        // Increment taken slots if enabled
         if (isSlotsEnabled) {
             if (slotsCounterDoc && slotsCounterDoc.exists()) {
                 transaction.update(slotsCounterRef, { count: increment(1) });
@@ -63,7 +62,6 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
         }
     });
     
-    console.log('New Order Submitted:', validation.data);
     return { success: true, message: 'Your order has been placed successfully!', orderId: newOrderId };
 
   } catch(error) {
@@ -74,4 +72,12 @@ export async function submitOrder(data: OrderInput & { userId?: string }) {
     }
     return { success: false, message: `Failed to place order. ${errorMessage}` };
   }
+}
+
+export async function submitOrder(data: OrderInput & { userId?: string }) {
+    return performOrderSubmission(data, orderSchema, 'chicken');
+}
+
+export async function submitGenericOrder(data: GenericOrderInput & { userId?: string }) {
+    return performOrderSubmission(data, genericOrderSchema, 'generic');
 }

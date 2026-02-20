@@ -8,6 +8,13 @@ import type { FirestoreOrder } from '@/lib/types';
 import { Separator } from './ui/separator';
 
 function formatOrderItems(order: FirestoreOrder): { name: string, quantity: number, price: number }[] {
+    if (order.productType === 'generic') {
+        const displayName = order.variationName && order.variationName !== 'Default' 
+            ? `${order.optionName} (${order.variationName})`
+            : `${order.optionName} (${order.productName})`;
+        return [{ name: displayName, quantity: order.quantity, price: order.price }];
+    }
+
     if (order.chickenType === 'whole') {
         return [{ name: 'Whole Chicken', quantity: order.quantity, price: order.price }];
     }
@@ -17,17 +24,14 @@ function formatOrderItems(order: FirestoreOrder): { name: string, quantity: numb
             return [{ name: 'Mixed Pieces', quantity: order.quantity, price: order.price }];
         }
         if (order.piecesType === 'custom' && order.pieceDetails) {
-            // This part is tricky as individual prices aren't stored on the order.
-            // We'll show the items but the total price is the main financial data point.
             const items = Object.entries(order.pieceDetails)
                 .filter(([, qty]) => qty > 0)
-                .map(([name, quantity]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), quantity: quantity || 0, price: 0 })); // Price is part of the total
+                .map(([name, quantity]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), quantity: quantity || 0, price: 0 }));
             if (items.length > 0) return items;
         }
     }
     
-    // Fallback for older orders or incomplete data
-    return [{ name: `Chicken Pieces`, quantity: order.quantity, price: order.price }];
+    return [{ name: `Product Item`, quantity: order.quantity, price: order.price }];
 }
 
 const OrderReceipt = forwardRef<HTMLDivElement, { order: FirestoreOrder }>(({ order }, ref) => {
@@ -39,7 +43,7 @@ const OrderReceipt = forwardRef<HTMLDivElement, { order: FirestoreOrder }>(({ or
             <div ref={ref} className="font-mono bg-white text-black p-6 rounded-lg shadow-lg">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold">FarmFresh</h2>
-                    <p className="text-xs">Your Campus Chicken Source</p>
+                    <p className="text-xs">Your Campus Product Source</p>
                     <p className="text-xs">Order Receipt</p>
                 </div>
 
@@ -116,5 +120,3 @@ const OrderReceipt = forwardRef<HTMLDivElement, { order: FirestoreOrder }>(({ or
 
 OrderReceipt.displayName = 'OrderReceipt';
 export default OrderReceipt;
-
-    

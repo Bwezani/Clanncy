@@ -1,7 +1,7 @@
 
 'use client'
 
-import { Home, ChevronRight } from "lucide-react";
+import { Home, ChevronRight, Landmark } from "lucide-react";
 import Image from 'next/image';
 import Link from "next/link";
 import { usePathname } from "next/navigation";

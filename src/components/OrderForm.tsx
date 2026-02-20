@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Home, School, Minus, Plus, Info, CalendarClock, ChevronsUpDown, Ticket, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Home, School, Minus, Plus, Info, CalendarClock, ChevronsUpDown, Ticket, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,9 +29,10 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useUser } from '@/hooks/use-user';
 import { Separator } from './ui/separator';
-import { doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import type { Prices, HomepageSettings, DeliverySettings } from '@/lib/types';
+import { Loader } from '@/components/ui/loader';
 
 
 const defaultPrices: Prices = {
@@ -192,7 +192,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
         parsedPrices.isChoosePiecesEnabled = true;
       }
       setPrices(parsedPrices);
-      setIsLoadingPrices(false); // Assume cached data is good enough for initial render
+      setIsLoadingPrices(false); 
     }
 
     // Set up real-time listener for prices
@@ -200,7 +200,6 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
     const unsubscribePrices = onSnapshot(pricesDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const fetchedPrices = docSnap.data() as Prices;
-        // Ensure the feature flag has a default value if it's missing from Firestore
         if (typeof fetchedPrices.isChoosePiecesEnabled === 'undefined') {
           fetchedPrices.isChoosePiecesEnabled = true;
         }
@@ -210,7 +209,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
       setIsLoadingPrices(false);
     }, (error) => {
       console.error("Could not fetch prices:", error);
-      setIsLoadingPrices(false); // Stop loading even if there's an error
+      setIsLoadingPrices(false);
     });
 
     // Set up real-time listener for homepage settings (for bounce animation toggle and images)
@@ -221,7 +220,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
             if (typeof data.isBounceAnimationEnabled === 'boolean') {
                 setIsBounceAnimationEnabled(data.isBounceAnimationEnabled);
             } else {
-                setIsBounceAnimationEnabled(true); // Default to true if not set
+                setIsBounceAnimationEnabled(true);
             }
              setContent({
                 wholeChickenImageUrl: data.wholeChickenImageUrl || 'https://i.postimg.cc/JhFDRd2m/359635-removebg-preview.png',
@@ -339,7 +338,6 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
         });
 
         if (!user) {
-            // Store order ID for anonymous user
             const anonymousOrderIds = JSON.parse(localStorage.getItem('anonymousOrderIds') || '[]');
             anonymousOrderIds.push(result.orderId);
             localStorage.setItem('anonymousOrderIds', JSON.stringify(anonymousOrderIds));
@@ -385,9 +383,8 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
                       form.setValue('quantity', 1);
                       form.setValue('piecesType', undefined);
                   } else {
-                      form.setValue('quantity', 2); // Default to 2 for mixed
-                      form.setValue('piecesType', 'mixed'); // Default to mixed
-                      // If choose pieces is disabled, it should always be mixed
+                      form.setValue('quantity', 2); 
+                      form.setValue('piecesType', 'mixed');
                       if (!prices.isChoosePiecesEnabled) {
                         form.setValue('piecesType', 'mixed');
                       }
@@ -534,7 +531,6 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
                 )}
               />
             ) : (
-              // If choose pieces is disabled, only show the "Mixed Pieces" label.
               <div>
                 <Label className="text-base font-medium">Piece Options</Label>
                 <p className="font-medium p-4 border rounded-md bg-muted/50 mt-2">Mixed Pieces</p>
@@ -572,7 +568,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
                                 type="number"
                                 min="2"
                                 className="w-16 text-center"
-                                readOnly // To enforce button usage
+                                readOnly 
                             />
                             <Button
                                 type="button"
@@ -630,8 +626,28 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
       )}>
         <h2 className="text-2xl font-bold font-headline">2. Delivery Details</h2>
         <div className="grid md:grid-cols-2 gap-4">
-          <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
-          <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="097 123 4567" {...field} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField 
+            control={form.control} 
+            name="name" 
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} 
+          />
+          <FormField 
+            control={form.control} 
+            name="phone" 
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone Number</FormLabel>
+                <FormControl><Input placeholder="097 123 4567" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} 
+          />
         </div>
 
         <FormField
@@ -682,8 +698,28 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
                 </FormItem>
               )}
             />
-            <FormField control={form.control} name="block" render={({ field }) => (<FormItem><FormLabel>Block/Hostel</FormLabel><FormControl><Input placeholder="e.g., AF / Vet Hostel" {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="room" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Room Number</FormLabel><FormControl><Input placeholder="e.g., 16" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField 
+              control={form.control} 
+              name="block" 
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Block/Hostel</FormLabel>
+                  <FormControl><Input placeholder="e.g., AF / Vet Hostel" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} 
+            />
+            <FormField 
+              control={form.control} 
+              name="room" 
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Room Number</FormLabel>
+                  <FormControl><Input placeholder="e.g., 16" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} 
+            />
           </div>
         ) : (
            <div className="grid md:grid-cols-2 gap-4">
@@ -709,8 +745,28 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
                   </FormItem>
                   )}
               />
-              <FormField control={form.control} name="street" render={({ field }) => (<FormItem><FormLabel>Street Name</FormLabel><FormControl><Input placeholder="e.g., Lumumba Rd" {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="houseNumber" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>House Number / Description</FormLabel><FormControl><Input placeholder="e.g., Plot 1234 or 'Blue gate'" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField 
+                control={form.control} 
+                name="street" 
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Street Name</FormLabel>
+                    <FormControl><Input placeholder="e.g., Lumumba Rd" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} 
+              />
+              <FormField 
+                control={form.control} 
+                name="houseNumber" 
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>House Number / Description</FormLabel>
+                    <FormControl><Input placeholder="e.g., Plot 1234 or 'Blue gate'" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} 
+              />
            </div>
         )}
       </section>
@@ -779,7 +835,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
   if (isLoadingPrices || isLoadingSettings) {
       return (
           <div className="flex justify-center items-center h-96">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <Loader />
           </div>
       )
   }

@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export const universitySchema = z.enum([
@@ -83,14 +84,9 @@ const pieceDetailsSchema = z.object({
   wings: z.number().min(0).default(0),
 });
 
-export const orderSchema = z.object({
+const commonFields = {
   deviceId: z.string().optional(),
   userId: z.string().optional(),
-  chickenType: z.enum(['whole', 'pieces']),
-  piecesType: z.enum(['mixed', 'custom']).optional(),
-  quantity: z.number().min(1, { message: 'You must select at least one item.' }),
-  price: z.number(),
-  pieceDetails: pieceDetailsSchema.optional(),
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   phone: z.string().min(10, { message: 'Please enter a valid phone number.' }),
   deliveryLocationType: z.enum(['school', 'off-campus']).default('school'),
@@ -100,7 +96,9 @@ export const orderSchema = z.object({
   area: lusakaTownsSchema.optional(),
   street: z.string().optional(),
   houseNumber: z.string().optional(),
-}).superRefine((data, ctx) => {
+};
+
+const validateDelivery = (data: any, ctx: z.RefinementCtx) => {
     if (data.deliveryLocationType === 'school') {
         if (!data.school) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select a school.', path: ['school'] });
@@ -122,6 +120,17 @@ export const orderSchema = z.object({
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'House number is required.', path: ['houseNumber'] });
         }
     }
+};
+
+export const orderSchema = z.object({
+  ...commonFields,
+  chickenType: z.enum(['whole', 'pieces']),
+  piecesType: z.enum(['mixed', 'custom']).optional(),
+  quantity: z.number().min(1, { message: 'You must select at least one item.' }),
+  price: z.number(),
+  pieceDetails: pieceDetailsSchema.optional(),
+}).superRefine((data, ctx) => {
+    validateDelivery(data, ctx);
 
     if (data.chickenType === 'pieces') {
         if (!data.piecesType) {
@@ -136,5 +145,17 @@ export const orderSchema = z.object({
     }
 });
 
+export const genericOrderSchema = z.object({
+  ...commonFields,
+  productId: z.string(),
+  productName: z.string(),
+  variationName: z.string().optional(),
+  optionName: z.string(),
+  quantity: z.number().min(1, { message: 'Quantity must be at least 1.' }),
+  price: z.number(),
+}).superRefine((data, ctx) => {
+    validateDelivery(data, ctx);
+});
 
 export type OrderInput = z.infer<typeof orderSchema>;
+export type GenericOrderInput = z.infer<typeof genericOrderSchema>;

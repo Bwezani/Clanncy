@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, DollarSign, Info, Loader2, Save, ShoppingCart, Smartphone, Trash2, AlertTriangle } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Loader2, Save, ShoppingCart, Smartphone, Trash2, AlertTriangle, Home, Layout } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Loader } from '@/components/ui/loader';
 
 
 function DangerZone() {
@@ -99,7 +100,7 @@ export default function SettingsDashboard() {
   if (isLoading) {
     return (
         <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <Loader />
         </div>
     )
   }
@@ -249,12 +250,40 @@ export default function SettingsDashboard() {
 
         <Card>
             <CardHeader>
-                <CardTitle>Homepage Settings</CardTitle>
-                <CardDescription>Set the main title, subtitle, images, and animations on the homepage.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Home className="h-5 w-5" /> Storefront Header Settings</CardTitle>
+                <CardDescription>Edit the content displayed in the hero section of your main homepage.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                  <div className="space-y-2">
-                    <Label htmlFor="homepage-title">Main Title</Label>
+                    <Label htmlFor="storefront-title">Storefront Title</Label>
+                    <Input
+                        id="storefront-title"
+                        type="text"
+                        placeholder="FarmFresh Store"
+                        value={homepage.storefrontTitle || ''}
+                        onChange={(e) => setHomepage({ ...homepage, storefrontTitle: e.target.value })}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="storefront-subtitle">Storefront Subtitle</Label>
+                    <Textarea
+                        id="storefront-subtitle"
+                        placeholder="The best farm-to-table products, delivered right to your campus."
+                        value={homepage.storefrontSubtitle || ''}
+                        onChange={(e) => setHomepage({ ...homepage, storefrontSubtitle: e.target.value })}
+                    />
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Layout className="h-5 w-5" /> Order Form Header Settings</CardTitle>
+                <CardDescription>Edit the header content shown on individual product order pages.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                 <div className="space-y-2">
+                    <Label htmlFor="homepage-title">Order Page Title</Label>
                     <Input
                         id="homepage-title"
                         type="text"
@@ -264,7 +293,7 @@ export default function SettingsDashboard() {
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="homepage-subtitle">Subtitle</Label>
+                    <Label htmlFor="homepage-subtitle">Order Page Subtitle</Label>
                     <Textarea
                         id="homepage-subtitle"
                         placeholder="Preorder now and pay when your chicken is delivered!"
@@ -292,7 +321,7 @@ export default function SettingsDashboard() {
                 <Separator />
                 <div className="grid md:grid-cols-2 gap-4 pt-4">
                     <div className="space-y-2">
-                        <Label htmlFor="whole-chicken-image-url">Whole Chicken Image URL</Label>
+                        <Label htmlFor="whole-chicken-image-url">Whole Chicken Image URL (Order Form)</Label>
                         <Input
                             id="whole-chicken-image-url"
                             type="text"
@@ -302,7 +331,7 @@ export default function SettingsDashboard() {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="pieces-image-url">Pieces Image URL</Label>
+                        <Label htmlFor="pieces-image-url">Pieces Image URL (Order Form)</Label>
                         <Input
                             id="pieces-image-url"
                             type="text"
@@ -315,9 +344,9 @@ export default function SettingsDashboard() {
                 <Separator />
                  <div className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                        <Label htmlFor="bounce-animation-switch" className="text-base">Enable Hero Section Animation</Label>
+                        <Label htmlFor="bounce-animation-switch" className="text-base">Enable Order Header Animation</Label>
                         <p className="text-sm text-muted-foreground">
-                           Animate the hero section on the homepage when the page loads.
+                           Animate the header section on individual order pages.
                         </p>
                     </div>
                     <Switch

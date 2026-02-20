@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { BarChart, Home, Menu, Package, Settings, Smartphone, Users, ChevronRight } from "lucide-react";
+import { BarChart, Home, Menu, Package, Settings, Smartphone, Users, ChevronRight, Landmark, Tag } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from 'react';
@@ -24,6 +24,12 @@ export const adminNavGroups = [
                 icon: BarChart,
                 subtitle: 'View sales and trends'
             },
+            {
+                href: '/admin/finance',
+                label: 'Finance',
+                icon: Landmark,
+                subtitle: 'Track expenses and profit'
+            },
         ]
     },
     {
@@ -33,6 +39,12 @@ export const adminNavGroups = [
                 label: 'Orders',
                 icon: Package,
                 subtitle: 'Manage and fulfill orders'
+            },
+            {
+                href: '/admin/products',
+                label: 'Products',
+                icon: Tag,
+                subtitle: 'Manage store catalog'
             },
         ]
     },

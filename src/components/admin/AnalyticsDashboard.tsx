@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -13,7 +12,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Loader2, Smartphone, ShoppingCart, DollarSign, Target } from 'lucide-react';
+import { Calendar as CalendarIcon, Smartphone, ShoppingCart, DollarSign, Target } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '../ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -21,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { useAdmin } from '@/context/AdminContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Loader } from '@/components/ui/loader';
 
 
 const generateDateRange = (start: Date, end: Date) => {
@@ -339,13 +339,13 @@ export default function AnalyticsDashboard() {
                         <TabsTrigger value="devices">Devices</TabsTrigger>
                     </TabsList>
                     <TabsContent value="sales" className="pl-2">
-                        <div className="h-[350px] w-full">
+                        <div className="min-h-[350px] w-full">
                             {isLoading ? (
                                 <div className="flex justify-center items-center h-full">
-                                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                                    <Loader />
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height={350}>
                                     <ChartContainer config={{ orders: { label: "Orders", color: "hsl(var(--primary))" } }}>
                                         <LineChart accessibilityLayer data={salesChartData} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
                                             <CartesianGrid vertical={false} />
@@ -374,13 +374,13 @@ export default function AnalyticsDashboard() {
                         </div>
                     </TabsContent>
                     <TabsContent value="devices" className="pl-2">
-                         <div className="h-[350px] w-full">
+                         <div className="min-h-[350px] w-full">
                             {isLoading ? (
                                 <div className="flex justify-center items-center h-full">
-                                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                                    <Loader />
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height={350}>
                                     <ChartContainer config={{ devices: { label: "New Devices", color: "hsl(var(--accent))" } }}>
                                         <LineChart accessibilityLayer data={deviceChartData} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
                                             <CartesianGrid vertical={false} />

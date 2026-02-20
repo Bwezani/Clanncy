@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
-import { Loader2 } from 'lucide-react';
+import { Loader } from '@/components/ui/loader';
 
 export default function AdminAnalyticsPage() {
     const [isClient, setIsClient] = useState(false);
@@ -26,7 +25,7 @@ export default function AdminAnalyticsPage() {
                 <AnalyticsDashboard />
             ) : (
                 <div className="flex justify-center items-center h-[450px] w-full bg-card rounded-lg">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <Loader />
                 </div>
             )}
         </div>

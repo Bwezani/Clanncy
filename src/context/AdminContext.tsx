@@ -1,14 +1,25 @@
+
 "use client";
 
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs, where, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
-import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings, AdminUser, UserRole, DeliveryRecord, FirestoreDeliveryRecord } from '@/lib/types';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs, where, runTransaction, increment, serverTimestamp, addDoc } from 'firebase/firestore';
+import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings, AdminUser, UserRole, DeliveryRecord, FirestoreDeliveryRecord, AdminExpense, FirestoreExpense, Product, FirestoreProduct } from '@/lib/types';
 import { useUser } from '@/hooks/use-user';
 
 function formatOrderItems(order: FirestoreOrder): string {
+    if (order.productType === 'generic') {
+        const parts = [];
+        if (order.variationName && order.variationName !== 'Default') {
+            parts.push(`${order.quantity}x ${order.optionName} (${order.variationName})`);
+        } else {
+            parts.push(`${order.quantity}x ${order.optionName}`);
+        }
+        return parts.join(' ') + ` [${order.productName}]`;
+    }
+
     const quantity = order.quantity;
     if (order.chickenType === 'whole') {
         return `${quantity}x Whole Chicken${quantity > 1 ? 's' : ''}`;
@@ -29,49 +40,35 @@ const defaultPrices: Prices = {
     whole: 150.00,
     mixedPiece: 15.00,
     isChoosePiecesEnabled: true,
-    pieces: {
-        breasts: 30.0,
-        thighs: 20.0,
-        drumsticks: 15.0,
-        wings: 10.0,
-    }
+    pieces: { breasts: 30.0, thighs: 20.0, drumsticks: 15.0, wings: 10.0 },
+    profit_whole: 0,
+    profit_mixedPiece: 0,
+    profit_breasts: 0,
+    profit_thighs: 0,
+    profit_drumsticks: 0,
+    profit_wings: 0,
 };
 
-const defaultContact: ContactSettings = {
-    callNumber: '+260975565291',
-    whatsappNumber: '+260975565291'
-}
-
-const defaultHomepage: HomepageSettings = {
-    title: 'The Best Chicken on Campus',
-    subtitle: 'Preorder now and pay when your chicken is delivered!',
-    isBounceAnimationEnabled: true,
-    formLayout: 'continuous',
-    wholeChickenImageUrl: 'https://i.postimg.cc/JhFDRd2m/359635-removebg-preview.png',
-    piecesImageUrl: 'https://i.postimg.cc/G2Zc5WS4/359689-removebg-preview.png',
-}
-
-const defaultDelivery: DeliverySettings = {
-    totalSlots: 50,
-    disableWhenSlotsFull: true,
-    slotsFullMessage: "We're fully booked! Check back later.",
-    nextDeliveryDate: undefined,
-    isSlotsEnabled: true,
+const defaultContact: ContactSettings = { callNumber: '+260975565291', whatsappNumber: '+260975565291' };
+const defaultHomepage: HomepageSettings = { 
+    storefrontTitle: 'FarmFresh Store',
+    storefrontSubtitle: 'The best farm-to-table products, delivered right to your campus.',
+    title: 'The Best on Campus', 
+    subtitle: 'Preorder now and pay when your product is delivered!', 
+    isBounceAnimationEnabled: true, 
+    formLayout: 'continuous', 
+    wholeChickenImageUrl: 'https://i.postimg.cc/JhFDRd2m/359635-removebg-preview.png', 
+    piecesImageUrl: 'https://i.postimg.cc/G2Zc5WS4/359689-removebg-preview.png' 
 };
-
-
-const defaultGoals: GoalsSettings = {
-    salesTarget: 0,
-    reservationsTarget: 0,
-    devicesTarget: 0,
-    startDate: undefined,
-    endDate: undefined,
-}
+const defaultDelivery: DeliverySettings = { totalSlots: 50, disableWhenSlotsFull: true, slotsFullMessage: "We're fully booked! Check back later.", nextDeliveryDate: undefined, isSlotsEnabled: true };
+const defaultGoals: GoalsSettings = { salesTarget: 0, reservationsTarget: 0, devicesTarget: 0, startDate: undefined, endDate: undefined };
 
 interface AdminContextType {
     orders: AdminOrder[];
     devices: AdminDevice[];
     users: AdminUser[];
+    expenses: AdminExpense[];
+    products: Product[];
     deliveredRecords: DeliveryRecord[];
     droppedRecords: DeliveryRecord[];
     userRole: UserRole | null;
@@ -80,6 +77,10 @@ interface AdminContextType {
     cancelOrder: (orderId: string) => void;
     restoreOrder: (orderId: string) => void;
     dropOrder: (orderId: string) => void;
+    addExpense: (expenseData: Omit<AdminExpense, 'id' | 'createdAt' | 'formattedDate'>) => void;
+    deleteExpense: (expenseId: string) => void;
+    saveProduct: (productData: Partial<Product>) => Promise<void>;
+    deleteProduct: (productId: string) => Promise<void>;
     deleteRecord: (recordId: string) => Promise<void>;
     clearAllOrders: () => void;
     resetSlots: () => void;
@@ -99,6 +100,13 @@ interface AdminContextType {
     isSaving: boolean;
     saveAllSettings: () => void;
     processingOrder: string | null;
+    financials: {
+        totalSales: number;
+        totalProfit: number;
+        totalCapitalExpenses: number;
+        totalOperationalExpenses: number;
+        netOperatingProfit: number;
+    }
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
@@ -107,6 +115,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [orders, setOrders] = useState<AdminOrder[]>([]);
     const [devices, setDevices] = useState<AdminDevice[]>([]);
     const [users, setUsers] = useState<AdminUser[]>([]);
+    const [expenses, setExpenses] = useState<AdminExpense[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
     const [deliverySettings, setDeliverySettings] = useState<DeliverySettings>(defaultDelivery);
     const [prices, setPrices] = useState<Prices>(defaultPrices);
     const [contact, setContact] = useState<ContactSettings>(defaultContact);
@@ -120,6 +130,44 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const { toast } = useToast();
     const { userRole } = useUser();
 
+     const financials = useMemo(() => {
+        const deliveredOrders = orders.filter(o => o.status === 'Delivered');
+        const totalSales = deliveredOrders.reduce((sum, order) => sum + order.price, 0);
+
+        const totalProfit = deliveredOrders.reduce((sum, order) => {
+            let orderProfit = 0;
+            const fullOrder = order.fullOrder;
+            if (fullOrder.productType === 'generic') {
+                const product = products.find(p => p.id === fullOrder.productId);
+                const variation = product?.variations?.find(v => v.name === fullOrder.variationName);
+                const option = variation?.options?.find(o => o.name === fullOrder.optionName);
+                orderProfit = (option?.profit || 0) * fullOrder.quantity;
+            } else {
+                if (fullOrder.chickenType === 'whole') {
+                    orderProfit = (prices.profit_whole || 0) * fullOrder.quantity;
+                } else if (fullOrder.chickenType === 'pieces') {
+                    if (fullOrder.piecesType === 'mixed') {
+                        orderProfit = (prices.profit_mixedPiece || 0) * fullOrder.quantity;
+                    } else if (fullOrder.piecesType === 'custom' && fullOrder.pieceDetails) {
+                        orderProfit += (fullOrder.pieceDetails.breasts || 0) * (prices.profit_breasts || 0);
+                        orderProfit += (fullOrder.pieceDetails.thighs || 0) * (prices.profit_thighs || 0);
+                        orderProfit += (fullOrder.pieceDetails.drumsticks || 0) * (prices.profit_drumsticks || 0);
+                        orderProfit += (fullOrder.pieceDetails.wings || 0) * (prices.profit_wings || 0);
+                    }
+                }
+            }
+            return sum + orderProfit;
+        }, 0);
+        
+        const totalCapitalExpenses = expenses.filter(e => e.expenseType === 'capital').reduce((sum, expense) => sum + expense.amount, 0);
+        const totalOperationalExpenses = expenses.filter(e => e.expenseType === 'operational').reduce((sum, expense) => sum + expense.amount, 0);
+
+        return { 
+            totalSales, totalProfit, totalCapitalExpenses, totalOperationalExpenses,
+            netOperatingProfit: totalProfit - totalOperationalExpenses
+        };
+    }, [orders, prices, expenses, products]);
+
     useEffect(() => {
         if (!userRole) {
             setIsLoading(false);
@@ -131,102 +179,57 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
         if (userRole === 'admin' || userRole === 'assistant') {
             const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-            const unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
+            subscriptions.push(onSnapshot(q, (querySnapshot) => {
                 const fetchedOrders: AdminOrder[] = [];
                 querySnapshot.forEach((doc) => {
                     const data = doc.data() as Omit<FirestoreOrder, 'id'>;
                     const firestoreOrder = { id: doc.id, ...data } as FirestoreOrder;
                     fetchedOrders.push({
                         id: doc.id,
-                        date: data.createdAt.toDate(), // Keep as Date object
-                        formattedDate: format(data.createdAt.toDate(), 'do MMMM, yyyy'),
+                        date: data.createdAt?.toDate() || new Date(),
+                        formattedDate: data.createdAt ? format(data.createdAt.toDate(), 'do MMMM, yyyy') : 'Pending',
                         items: formatOrderItems(firestoreOrder),
-                        price: data.price,
-                        status: data.status,
-                        name: data.name,
-                        phone: data.phone,
-                        deliveryLocationType: data.deliveryLocationType,
-                        school: data.school,
-                        block: data.block,
-                        room: data.room,
-                        area: data.area,
-                        street: data.street,
-                        houseNumber: data.houseNumber,
-                        fullOrder: firestoreOrder,
+                        price: data.price, status: data.status, name: data.name, phone: data.phone,
+                        deliveryLocationType: data.deliveryLocationType, school: data.school, block: data.block, room: data.room,
+                        area: data.area, street: data.street, houseNumber: data.houseNumber, fullOrder: firestoreOrder,
                     });
                 });
                 setOrders(fetchedOrders);
-            }, (error) => {
-                console.error("Error fetching orders: ", error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Could not fetch orders.'
-                });
-            });
-            subscriptions.push(unsubscribeOrders);
+            }));
 
-            const deliveredQuery = query(collection(db, "deliveredRecords"), orderBy("lastActionAt", "desc"));
-            const unsubscribeDelivered = onSnapshot(deliveredQuery, (snapshot) => {
-                const fetchedRecords: DeliveryRecord[] = snapshot.docs.map(doc => {
+            subscriptions.push(onSnapshot(query(collection(db, "deliveredRecords"), orderBy("lastActionAt", "desc")), (snapshot) => {
+                setDeliveredRecords(snapshot.docs.map(doc => {
                     const data = doc.data() as FirestoreDeliveryRecord;
                     return {
-                        id: doc.id,
-                        name: data.name,
-                        phone: data.phone,
-                        deliveryLocationType: data.deliveryLocationType,
-                        school: data.school,
-                        block: data.block,
-                        room: data.room,
-                        area: data.area,
-                        street: data.street,
-                        houseNumber: data.houseNumber,
-                        lastActionAt: data.lastActionAt.toDate(),
-                        formattedLastActionAt: format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a'),
+                        id: doc.id, name: data.name, phone: data.phone, deliveryLocationType: data.deliveryLocationType,
+                        school: data.school, block: data.block, room: data.room, area: data.area, street: data.street,
+                        houseNumber: data.houseNumber, lastActionAt: data.lastActionAt?.toDate() || new Date(),
+                        formattedLastActionAt: data.lastActionAt ? format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a') : 'Pending',
                     };
-                });
-                setDeliveredRecords(fetchedRecords);
-            }, (error) => {
-                console.error("Error fetching delivered records:", error);
-            });
-            subscriptions.push(unsubscribeDelivered);
+                }));
+            }));
 
-            const droppedQuery = query(collection(db, "droppedRecords"), orderBy("lastActionAt", "desc"));
-            const unsubscribeDropped = onSnapshot(droppedQuery, (snapshot) => {
-                const fetchedRecords: DeliveryRecord[] = snapshot.docs.map(doc => {
+            subscriptions.push(onSnapshot(query(collection(db, "droppedRecords"), orderBy("lastActionAt", "desc")), (snapshot) => {
+                setDroppedRecords(snapshot.docs.map(doc => {
                     const data = doc.data() as FirestoreDeliveryRecord;
                     return {
-                        id: doc.id,
-                        name: data.name,
-                        phone: data.phone,
-                        deliveryLocationType: data.deliveryLocationType,
-                        school: data.school,
-                        block: data.block,
-                        room: data.room,
-                        area: data.area,
-                        street: data.street,
-                        houseNumber: data.houseNumber,
-                        lastActionAt: data.lastActionAt.toDate(),
-                        formattedLastActionAt: format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a'),
+                        id: doc.id, name: data.name, phone: data.phone, deliveryLocationType: data.deliveryLocationType,
+                        school: data.school, block: data.block, room: data.room, area: data.area, street: data.street,
+                        houseNumber: data.houseNumber, lastActionAt: data.lastActionAt?.toDate() || new Date(),
+                        formattedLastActionAt: data.lastActionAt ? format(data.lastActionAt.toDate(), 'do MMMM, yyyy, hh:mm a') : 'Pending',
                     };
-                });
-                setDroppedRecords(fetchedRecords);
-            }, (error) => {
-                console.error("Error fetching dropped records:", error);
-            });
-            subscriptions.push(unsubscribeDropped);
+                }));
+            }));
         }
         
         if (userRole === 'admin') {
-            const devicesQuery = query(collection(db, "devices"), orderBy("lastSeenAt", "desc"));
-            const unsubscribeDevices = onSnapshot(devicesQuery, (querySnapshot) => {
+            subscriptions.push(onSnapshot(query(collection(db, "devices"), orderBy("lastSeenAt", "desc")), (querySnapshot) => {
                 const fetchedDevices: AdminDevice[] = [];
                 querySnapshot.forEach((doc) => {
                     const data = doc.data() as FirestoreDevice;
                     if (data.createdAt && data.lastSeenAt) {
                         fetchedDevices.push({
-                            id: doc.id,
-                            createdAt: data.createdAt.toDate(), // Keep as Date object
+                            id: doc.id, createdAt: data.createdAt.toDate(),
                             formattedCreatedAt: format(data.createdAt.toDate(), 'do MMMM, yyyy'),
                             formattedLastSeenAt: formatDistanceToNow(data.lastSeenAt.toDate(), { addSuffix: true }),
                             userAgent: data.userAgent,
@@ -234,40 +237,50 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                     }
                 });
                 setDevices(fetchedDevices);
-            }, (error) => {
-                console.error("Error fetching devices: ", error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Could not fetch devices.'
-                });
-            });
-            subscriptions.push(unsubscribeDevices);
+            }));
 
-            const usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"));
-            const unsubscribeUsers = onSnapshot(usersQuery, (querySnapshot) => {
-                const fetchedUsers: AdminUser[] = [];
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    fetchedUsers.push({
-                        id: doc.id,
-                        email: data.email,
-                        role: data.role || 'customer',
-                        createdAt: data.createdAt ? format(data.createdAt.toDate(), 'do MMMM, yyyy') : 'N/A',
-                    });
-                });
-                setUsers(fetchedUsers);
+            subscriptions.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc")), (querySnapshot) => {
+                setUsers(querySnapshot.docs.map(doc => ({
+                    id: doc.id, email: doc.data().email, role: doc.data().role || 'customer',
+                    createdAt: doc.data().createdAt ? format(doc.data().createdAt.toDate(), 'do MMMM, yyyy') : 'N/A',
+                })));
+            }));
+
+            subscriptions.push(onSnapshot(query(collection(db, 'expenses'), orderBy('createdAt', 'desc')), (snapshot) => {
+                setExpenses(snapshot.docs.map(doc => {
+                    const data = doc.data() as FirestoreExpense;
+                    return {
+                        id: doc.id, description: data.description, amount: data.amount, category: data.category,
+                        expenseType: data.expenseType || 'operational', createdAt: data.createdAt?.toDate() || new Date(),
+                        formattedDate: data.createdAt ? format(data.createdAt.toDate(), 'do MMM, yyyy') : 'Pending'
+                    };
+                }));
+            }));
+
+            // Handle Product Sorting with index fallback
+            const productsRef = collection(db, 'products');
+            const primaryQuery = query(productsRef, orderBy('displayOrder', 'asc'), orderBy('createdAt', 'desc'));
+            
+            const unsubProducts = onSnapshot(primaryQuery, (snapshot) => {
+                setProducts(snapshot.docs.map(doc => {
+                    const data = doc.data() as FirestoreProduct;
+                    return { id: doc.id, ...data, createdAt: data.createdAt?.toDate() || new Date() } as Product;
+                }));
             }, (error) => {
-                console.error("Error fetching users: ", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch users.' });
+                console.warn("Missing index for primary product sort, falling back:", error);
+                const fallbackQuery = query(productsRef, orderBy('createdAt', 'desc'));
+                onSnapshot(fallbackQuery, (snapshot) => {
+                    setProducts(snapshot.docs.map(doc => {
+                        const data = doc.data() as FirestoreProduct;
+                        return { id: doc.id, ...data, createdAt: data.createdAt?.toDate() || new Date() } as Product;
+                    }));
+                });
             });
-            subscriptions.push(unsubscribeUsers);
+            subscriptions.push(unsubProducts);
 
             const fetchSettings = async () => {
                 try {
-                    // Fetch Delivery Settings
-                    const deliveryDocRef = doc(db, 'settings', 'delivery');
-                    const deliveryDocSnap = await getDoc(deliveryDocRef);
+                    const deliveryDocSnap = await getDoc(doc(db, 'settings', 'delivery'));
                     if (deliveryDocSnap.exists()) {
                         const data = deliveryDocSnap.data();
                         setDeliverySettings({
@@ -277,75 +290,30 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                             slotsFullMessage: data.slotsFullMessage ?? defaultDelivery.slotsFullMessage,
                             isSlotsEnabled: typeof data.isSlotsEnabled === 'boolean' ? data.isSlotsEnabled : defaultDelivery.isSlotsEnabled,
                         });
-                    } else {
-                        setDeliverySettings(defaultDelivery);
                     }
-
-                    // Fetch Prices
-                    const pricesDocRef = doc(db, 'settings', 'pricing');
-                    const pricesDocSnap = await getDoc(pricesDocRef);
-                    if (pricesDocSnap.exists()) {
-                        const fetchedPrices = pricesDocSnap.data() as Prices;
-                        if (typeof fetchedPrices.isChoosePiecesEnabled === 'undefined') {
-                            fetchedPrices.isChoosePiecesEnabled = true;
-                        }
-                        setPrices(fetchedPrices);
-                    }
-
-                    // Fetch Contact
-                    const contactDocRef = doc(db, 'settings', 'contact');
-                    const contactDocSnap = await getDoc(contactDocRef);
-                    if (contactDocSnap.exists()) {
-                        setContact(contactDocSnap.data() as ContactSettings);
-                    }
-
-                    // Fetch Homepage
-                    const homepageDocRef = doc(db, 'settings', 'homepage');
-                    const homepageDocSnap = await getDoc(homepageDocRef);
+                    const pricesDocSnap = await getDoc(doc(db, 'settings', 'pricing'));
+                    if (pricesDocSnap.exists()) setPrices({ ...defaultPrices, ...pricesDocSnap.data() } as Prices);
+                    const contactDocSnap = await getDoc(doc(db, 'settings', 'contact'));
+                    if (contactDocSnap.exists()) setContact(contactDocSnap.data() as ContactSettings);
+                    const homepageDocSnap = await getDoc(doc(db, 'settings', 'homepage'));
                     if (homepageDocSnap.exists()) {
-                        const fetchedHomepage = homepageDocSnap.data() as HomepageSettings;
+                        const data = homepageDocSnap.data();
                         setHomepage({
-                            title: fetchedHomepage.title || defaultHomepage.title,
-                            subtitle: fetchedHomepage.subtitle || defaultHomepage.subtitle,
-                            isBounceAnimationEnabled: typeof fetchedHomepage.isBounceAnimationEnabled === 'boolean' ? fetchedHomepage.isBounceAnimationEnabled : defaultHomepage.isBounceAnimationEnabled,
-                            formLayout: fetchedHomepage.formLayout || defaultHomepage.formLayout,
-                            wholeChickenImageUrl: fetchedHomepage.wholeChickenImageUrl || defaultHomepage.wholeChickenImageUrl,
-                            piecesImageUrl: fetchedHomepage.piecesImageUrl || defaultHomepage.piecesImageUrl,
+                            storefrontTitle: data.storefrontTitle || defaultHomepage.storefrontTitle,
+                            storefrontSubtitle: data.storefrontSubtitle || defaultHomepage.storefrontSubtitle,
+                            title: data.title || defaultHomepage.title,
+                            subtitle: data.subtitle || defaultHomepage.subtitle,
+                            isBounceAnimationEnabled: typeof data.isBounceAnimationEnabled === 'boolean' ? data.isBounceAnimationEnabled : defaultHomepage.isBounceAnimationEnabled,
+                            formLayout: data.formLayout || defaultHomepage.formLayout,
+                            wholeChickenImageUrl: data.wholeChickenImageUrl || defaultHomepage.wholeChickenImageUrl,
+                            piecesImageUrl: data.piecesImageUrl || defaultHomepage.piecesImageUrl,
                         });
-                    } else {
-                        setHomepage(defaultHomepage);
                     }
-                    
-                    // Fetch Goals
-                    const goalsDocRef = doc(db, 'settings', 'goals');
-                    const goalsDocSnap = await getDoc(goalsDocRef);
+                    const goalsDocSnap = await getDoc(doc(db, 'settings', 'goals'));
                     if (goalsDocSnap.exists()) {
-                        const data = goalsDocSnap.data() as {
-                            salesTarget: number;
-                            reservationsTarget: number;
-                            devicesTarget: number;
-                            startDate?: Timestamp;
-                            endDate?: Timestamp;
-                        };
-                        const fetchedGoals: GoalsSettings = {
-                            salesTarget: data.salesTarget || 0,
-                            reservationsTarget: data.reservationsTarget || 0,
-                            devicesTarget: data.devicesTarget || 0,
-                            startDate: data.startDate?.toDate(),
-                            endDate: data.endDate?.toDate(),
-                        };
-                        setGoals(fetchedGoals);
-                    } else {
-                        setGoals(defaultGoals);
+                        const gData = goalsDocSnap.data();
+                        setGoals({ salesTarget: gData.salesTarget || 0, reservationsTarget: gData.reservationsTarget || 0, devicesTarget: gData.devicesTarget || 0, startDate: gData.startDate?.toDate(), endDate: gData.endDate?.toDate() });
                     }
-
-
-                } catch (error) {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Error',
-                        description: 'Could not fetch settings.'
-                    });
                 } finally {
                     setIsLoading(false);
                 }
@@ -355,26 +323,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
         }
 
-        return () => {
-            subscriptions.forEach(sub => sub());
-        };
+        return () => subscriptions.forEach(sub => sub());
     }, [toast, userRole]);
 
     const confirmDelivery = async (orderId: string) => {
         setProcessingOrder(orderId);
-        const orderDocRef = doc(db, 'orders', orderId);
         try {
-            await updateDoc(orderDocRef, { status: 'Confirmed' });
-            toast({
-                title: "Order Updated",
-                description: `Order ${orderId} has been confirmed.`
-            });
-        } catch (error) {
-             toast({
-                variant: 'destructive',
-                title: "Update Failed",
-                description: `Could not confirm order ${orderId}.`
-            });
+            await updateDoc(doc(db, 'orders', orderId), { status: 'Confirmed' });
+            toast({ title: "Order Updated", description: `Order ${orderId} has been confirmed.` });
         } finally {
             setProcessingOrder(null);
         }
@@ -382,49 +338,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     const markAsDelivered = async (orderId: string) => {
         setProcessingOrder(orderId);
-        const orderDocRef = doc(db, 'orders', orderId);
-        const slotsCounterRef = doc(db, 'slots', 'live_counter');
         try {
             await runTransaction(db, async (transaction) => {
-                const orderDoc = await transaction.get(orderDocRef);
-                if (!orderDoc.exists() || orderDoc.data().status === 'Delivered') {
-                    return;
-                }
-
+                const orderDoc = await transaction.get(doc(db, 'orders', orderId));
+                if (!orderDoc.exists() || orderDoc.data().status === 'Delivered') return;
                 const orderData = orderDoc.data() as FirestoreOrder;
-
-                transaction.update(orderDocRef, { status: 'Delivered' });
-
-                if (['Pending', 'Confirmed'].includes(orderDoc.data().status)) {
-                    transaction.update(slotsCounterRef, { count: increment(-1) });
-                }
-
+                transaction.update(doc(db, 'orders', orderId), { status: 'Delivered' });
+                if (['Pending', 'Confirmed'].includes(orderData.status)) transaction.update(doc(db, 'slots', 'live_counter'), { count: increment(-1) });
                 if (orderData.deviceId) {
-                    const recordRef = doc(db, 'deliveredRecords', orderData.deviceId);
-                    transaction.set(recordRef, {
-                        name: orderData.name,
-                        phone: orderData.phone,
-                        deliveryLocationType: orderData.deliveryLocationType,
-                        school: orderData.school || null,
-                        block: orderData.block || null,
-                        room: orderData.room || null,
-                        area: orderData.area || null,
-                        street: orderData.street || null,
-                        houseNumber: orderData.houseNumber || null,
-                        lastActionAt: serverTimestamp(),
-                    });
+                    transaction.set(doc(db, 'deliveredRecords', orderData.deviceId), { ...orderData, lastActionAt: serverTimestamp() });
                 }
             });
-            toast({
-                title: "Order Updated",
-                description: `Order ${orderId} has been marked as delivered.`
-            });
-        } catch (error) {
-             toast({
-                variant: 'destructive',
-                title: "Update Failed",
-                description: `Could not update order ${orderId}.`
-            });
+            toast({ title: "Order Updated", description: `Order ${orderId} has been marked as delivered.` });
         } finally {
             setProcessingOrder(null);
         }
@@ -432,19 +357,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     
     const cancelOrder = async (orderId: string) => {
         setProcessingOrder(orderId);
-        const orderDocRef = doc(db, 'orders', orderId);
         try {
-            await updateDoc(orderDocRef, { status: 'Cancelled' });
-            toast({
-                title: "Order Cancelled",
-                description: `Order ${orderId} has been cancelled.`
-            });
-        } catch (error) {
-             toast({
-                variant: 'destructive',
-                title: "Update Failed",
-                description: `Could not cancel order ${orderId}.`
-            });
+            await updateDoc(doc(db, 'orders', orderId), { status: 'Cancelled' });
+            toast({ title: "Order Cancelled", description: `Order ${orderId} has been cancelled.` });
         } finally {
             setProcessingOrder(null);
         }
@@ -452,19 +367,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     const restoreOrder = async (orderId: string) => {
         setProcessingOrder(orderId);
-        const orderDocRef = doc(db, 'orders', orderId);
         try {
-            await updateDoc(orderDocRef, { status: 'Pending' });
-            toast({
-                title: "Order Restored",
-                description: `Order ${orderId} has been restored to Pending.`
-            });
-        } catch (error) {
-             toast({
-                variant: 'destructive',
-                title: "Update Failed",
-                description: `Could not restore order ${orderId}.`
-            });
+            await updateDoc(doc(db, 'orders', orderId), { status: 'Pending' });
+            toast({ title: "Order Restored", description: `Order ${orderId} has been restored to Pending.` });
         } finally {
             setProcessingOrder(null);
         }
@@ -472,70 +377,86 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     
     const dropOrder = async (orderId: string) => {
         setProcessingOrder(orderId);
-        const orderDocRef = doc(db, 'orders', orderId);
-        const slotsCounterRef = doc(db, 'slots', 'live_counter');
         try {
             await runTransaction(db, async (transaction) => {
-                const orderDoc = await transaction.get(orderDocRef);
-                if (!orderDoc.exists()) {
-                    return;
-                }
-
+                const orderDoc = await transaction.get(doc(db, 'orders', orderId));
+                if (!orderDoc.exists()) return;
                 const orderData = orderDoc.data() as FirestoreOrder;
-                
                 if (orderData.deviceId) {
-                    const recordRef = doc(db, 'droppedRecords', orderData.deviceId);
-                    transaction.set(recordRef, {
-                        name: orderData.name,
-                        phone: orderData.phone,
-                        deliveryLocationType: orderData.deliveryLocationType,
-                        school: orderData.school || null,
-                        block: orderData.block || null,
-                        room: orderData.room || null,
-                        area: orderData.area || null,
-                        street: orderData.street || null,
-                        houseNumber: orderData.houseNumber || null,
-                        lastActionAt: serverTimestamp(),
-                    });
+                    transaction.set(doc(db, 'droppedRecords', orderData.deviceId), { ...orderData, lastActionAt: serverTimestamp() });
                 }
-
-                transaction.delete(orderDocRef);
-
-                // A slot was taken and now needs to be freed, unless it was already delivered.
-                if (orderData.status !== 'Delivered') {
-                    transaction.update(slotsCounterRef, { count: increment(-1) });
-                }
+                transaction.delete(doc(db, 'orders', orderId));
+                if (orderData.status !== 'Delivered') transaction.update(doc(db, 'slots', 'live_counter'), { count: increment(-1) });
             });
-            toast({
-                title: "Order Dropped",
-                description: `Order ${orderId} has been permanently deleted.`
-            });
-        } catch (error) {
-            toast({
-                variant: 'destructive',
-                title: "Drop Failed",
-                description: `Could not drop order ${orderId}.`
-            });
+            toast({ title: "Order Dropped", description: `Order ${orderId} has been permanently deleted.` });
         } finally {
             setProcessingOrder(null);
         }
     };
 
+    const addExpense = async (expenseData: any) => {
+        try {
+            await addDoc(collection(db, 'expenses'), { ...expenseData, createdAt: serverTimestamp() });
+            toast({ title: 'Success', description: 'Expense has been added.' });
+        } catch {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not add expense.' });
+        }
+    }
+
+    const deleteExpense = async (expenseId: string) => {
+        try {
+            await deleteDoc(doc(db, 'expenses', expenseId));
+            toast({ title: 'Success', description: 'Expense has been deleted.' });
+        } catch {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not delete expense.' });
+        }
+    }
+
+    const saveProduct = async (productData: Partial<Product>) => {
+        setIsSaving(true);
+        try {
+            const { id, ...data } = productData;
+            const finalData = {
+                ...data,
+                displayOrder: Number(data.displayOrder || 10),
+                isActive: data.isActive ?? true,
+            };
+
+            if (id) {
+                await setDoc(doc(db, 'products', id), { ...finalData, updatedAt: serverTimestamp() }, { merge: true });
+                toast({ title: 'Product Updated', description: 'The product has been successfully updated.' });
+            } else {
+                await addDoc(collection(db, 'products'), { ...finalData, createdAt: serverTimestamp() });
+                toast({ title: 'Product Created', description: 'New product has been added to your catalog.' });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save product.' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const deleteProduct = async (productId: string) => {
+        setIsSaving(true);
+        try {
+            await deleteDoc(doc(db, 'products', productId));
+            toast({ title: 'Product Deleted', description: 'The product has been removed.' });
+        } catch {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not delete product.' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const deleteRecord = async (recordId: string) => {
-        const deliveredRecordRef = doc(db, 'deliveredRecords', recordId);
-        const droppedRecordRef = doc(db, 'droppedRecords', recordId);
         try {
             const batch = writeBatch(db);
-            batch.delete(deliveredRecordRef);
-            batch.delete(droppedRecordRef);
+            batch.delete(doc(db, 'deliveredRecords', recordId));
+            batch.delete(doc(db, 'droppedRecords', recordId));
             await batch.commit();
         } catch (error) {
-            console.error(`Error deleting record ${recordId} from collections:`, error);
-            toast({
-                variant: 'destructive',
-                title: "Deletion Failed",
-                description: "Could not remove the customer record(s).",
-            });
+            toast({ variant: 'destructive', title: "Deletion Failed", description: "Could not remove record." });
             throw error;
         }
     };
@@ -543,30 +464,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const clearAllOrders = async () => {
         setIsSaving(true);
         try {
-            const ordersQuery = query(collection(db, 'orders'));
-            const querySnapshot = await getDocs(ordersQuery);
+            const querySnapshot = await getDocs(collection(db, 'orders'));
             const batch = writeBatch(db);
-            
-            querySnapshot.forEach((doc) => {
-                batch.delete(doc.ref);
-            });
-
-            const slotsCounterRef = doc(db, 'slots', 'live_counter');
-            batch.set(slotsCounterRef, { count: 0 });
-            
+            querySnapshot.forEach((doc) => batch.delete(doc.ref));
+            batch.set(doc(db, 'slots', 'live_counter'), { count: 0 });
             await batch.commit();
-
-            toast({
-                title: "Success",
-                description: "All order data has been cleared and slots have been reset."
-            });
-        } catch (error) {
-            console.error("Error clearing orders:", error);
-            toast({
-                variant: 'destructive',
-                title: "Clear Failed",
-                description: "Could not clear all order data."
-            });
+            toast({ title: "Success", description: "All order data has been cleared." });
         } finally {
             setIsSaving(false);
         }
@@ -574,20 +477,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     const resetSlots = async () => {
         setIsSaving(true);
-        const slotsCounterRef = doc(db, 'slots', 'live_counter');
         try {
-            await setDoc(slotsCounterRef, { count: 0 });
-            toast({
-                title: "Success",
-                description: "Slot count has been reset to 0."
-            });
-        } catch (error) {
-            console.error("Error resetting slots:", error);
-            toast({
-                variant: 'destructive',
-                title: "Reset Failed",
-                description: "Could not reset the slot count."
-            });
+            await setDoc(doc(db, 'slots', 'live_counter'), { count: 0 });
+            toast({ title: "Success", description: "Slot count has been reset to 0." });
         } finally {
             setIsSaving(false);
         }
@@ -596,115 +488,41 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const saveAllSettings = async () => {
         setIsSaving(true);
         try {
-            const deliveryDocRef = doc(db, 'settings', 'delivery');
-            const deliveryDataToSave = {
-                ...deliverySettings,
-                nextDeliveryDate: deliverySettings.nextDeliveryDate ? Timestamp.fromDate(deliverySettings.nextDeliveryDate) : null,
-            };
-            await setDoc(deliveryDocRef, deliveryDataToSave, { merge: true });
-            if (deliverySettings.nextDeliveryDate) {
-                localStorage.setItem('nextDeliveryDate', deliverySettings.nextDeliveryDate.toISOString());
-            } else {
-                 localStorage.removeItem('nextDeliveryDate');
-            }
-
-
-            const pricesDocRef = doc(db, 'settings', 'pricing');
-            await setDoc(pricesDocRef, prices, { merge: true });
+            const batch = writeBatch(db);
+            batch.set(doc(db, 'settings', 'delivery'), { ...deliverySettings, nextDeliveryDate: deliverySettings.nextDeliveryDate ? Timestamp.fromDate(deliverySettings.nextDeliveryDate) : null }, { merge: true });
+            batch.set(doc(db, 'settings', 'pricing'), prices, { merge: true });
+            batch.set(doc(db, 'settings', 'contact'), contact, { merge: true });
+            batch.set(doc(db, 'settings', 'homepage'), homepage, { merge: true });
+            batch.set(doc(db, 'settings', 'goals'), { ...goals, startDate: goals.startDate ? Timestamp.fromDate(goals.startDate) : null, endDate: goals.endDate ? Timestamp.fromDate(goals.endDate) : null }, { merge: true });
+            await batch.commit();
             localStorage.setItem('curbsidePrices', JSON.stringify(prices));
-
-            const contactDocRef = doc(db, 'settings', 'contact');
-            await setDoc(contactDocRef, contact, { merge: true });
-            
-            const homepageDocRef = doc(db, 'settings', 'homepage');
-            await setDoc(homepageDocRef, homepage, { merge: true });
-
-            const goalsDocRef = doc(db, 'settings', 'goals');
-            const goalsToSave = {
-                salesTarget: goals.salesTarget,
-                reservationsTarget: goals.reservationsTarget,
-                devicesTarget: goals.devicesTarget,
-                startDate: goals.startDate ? Timestamp.fromDate(goals.startDate) : null,
-                endDate: goals.endDate ? Timestamp.fromDate(goals.endDate) : null,
-            };
-            await setDoc(goalsDocRef, goalsToSave, { merge: true });
-
-
-            toast({
-                title: 'Success!',
-                description: 'All settings have been saved.',
-            });
-
-        } catch (error) {
-            console.error("Error saving settings:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Save Failed',
-                description: `Could not save all settings. ${error instanceof Error ? error.message : ''}`.trim(),
-            });
+            toast({ title: 'Success!', description: 'All settings have been saved.' });
         } finally {
             setIsSaving(false);
         }
     }
     
-    const clearGoals = () => {
-        setGoals(defaultGoals);
-    };
+    const clearGoals = () => setGoals(defaultGoals);
 
     const updateUserRole = async (userId: string, role: UserRole) => {
-        if (userRole !== 'admin') {
-            toast({ variant: 'destructive', title: "Permission Denied", description: "You are not authorized to change user roles." });
-            return;
-        }
-        const userDocRef = doc(db, 'users', userId);
+        if (userRole !== 'admin') return;
         try {
-            await updateDoc(userDocRef, { role: role });
-            toast({
-                title: "User Role Updated",
-                description: `User role has been successfully updated to ${role}.`
-            });
-        } catch (error) {
-            toast({
-                variant: 'destructive',
-                title: "Update Failed",
-                description: `Could not update user role.`
-            });
+            await updateDoc(doc(db, 'users', userId), { role });
+            toast({ title: "User Role Updated", description: `User role has been successfully updated to ${role}.` });
+        } catch {
+            toast({ variant: 'destructive', title: "Update Failed", description: `Could not update user role.` });
         }
     };
 
 
     return (
         <AdminContext.Provider value={{ 
-            orders, 
-            devices,
-            users,
-            deliveredRecords,
-            droppedRecords,
-            userRole,
-            confirmDelivery,
-            markAsDelivered,
-            cancelOrder,
-            restoreOrder,
-            dropOrder,
-            deleteRecord,
-            clearAllOrders,
-            resetSlots,
-            deliverySettings,
-            setDeliverySettings,
-            prices,
-            setPrices,
-            contact,
-            setContact,
-            homepage,
-            setHomepage,
-            goals,
-            setGoals,
-            clearGoals,
-            updateUserRole,
-            isLoading,
-            isSaving,
-            saveAllSettings,
-            processingOrder,
+            orders, devices, users, expenses, products, deliveredRecords, droppedRecords, userRole,
+            confirmDelivery, markAsDelivered, cancelOrder, restoreOrder, dropOrder,
+            addExpense, deleteExpense, saveProduct, deleteProduct, deleteRecord, clearAllOrders, resetSlots,
+            deliverySettings, setDeliverySettings, prices, setPrices,
+            contact, setContact, homepage, setHomepage, goals, setGoals, clearGoals,
+            updateUserRole, isLoading, isSaving, saveAllSettings, processingOrder, financials,
          }}>
             {children}
         </AdminContext.Provider>
@@ -713,8 +531,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
 export function useAdmin() {
     const context = useContext(AdminContext);
-    if (context === undefined) {
-        throw new Error('useAdmin must be used within an AdminProvider');
-    }
+    if (context === undefined) throw new Error('useAdmin must be used within an AdminProvider');
     return context;
 }

@@ -20,12 +20,19 @@ import OrderReceipt from './OrderReceipt';
 import html2canvas from 'html2canvas';
 import OrderStatusProgress from './OrderStatusProgress';
 import { Separator } from './ui/separator';
-import { submitOrder } from '@/lib/actions';
+import { submitOrder, submitGenericOrder } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import type { OrderInput } from '@/lib/schema';
+import type { OrderInput, GenericOrderInput } from '@/lib/schema';
 
 
 function formatOrderItems(order: FirestoreOrder): string {
+    if (order.productType === 'generic') {
+        if (order.variationName && order.variationName !== 'Default') {
+            return `${order.quantity}x ${order.optionName} (${order.variationName})`;
+        }
+        return `${order.quantity}x ${order.optionName} (${order.productName})`;
+    }
+
     const quantity = order.quantity;
     if (order.chickenType === 'whole') {
         return `${quantity}x Whole Chicken${quantity > 1 ? 's' : ''}`;
@@ -82,39 +89,51 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
         setReorderingId(orderToCopy.id);
 
         const originalOrder = orderToCopy.fullOrder;
-
-        const newOrderData: OrderInput = {
-            chickenType: originalOrder.chickenType,
-            piecesType: originalOrder.piecesType,
-            quantity: originalOrder.quantity,
-            price: originalOrder.price,
-            pieceDetails: originalOrder.pieceDetails,
-            name: originalOrder.name,
-            phone: originalOrder.phone,
-            deliveryLocationType: originalOrder.deliveryLocationType,
-            school: originalOrder.school as any,
-            block: originalOrder.block,
-            room: originalOrder.room,
-            area: originalOrder.area as any,
-            street: originalOrder.street,
-            houseNumber: originalOrder.houseNumber,
-        };
-        
         const deviceId = localStorage.getItem('deviceId');
-        const submissionData: OrderInput & { userId?: string, deviceId?: string } = {
-            ...newOrderData,
-            deviceId: deviceId || undefined,
-            userId: user?.uid,
-        };
+        
+        let result;
 
-        const result = await submitOrder(submissionData);
+        if (originalOrder.productType === 'generic') {
+            const newOrderData: GenericOrderInput = {
+                productId: originalOrder.productId!,
+                productName: originalOrder.productName!,
+                variationName: originalOrder.variationName,
+                optionName: originalOrder.optionName!,
+                quantity: originalOrder.quantity,
+                price: originalOrder.price,
+                name: originalOrder.name,
+                phone: originalOrder.phone,
+                deliveryLocationType: originalOrder.deliveryLocationType,
+                school: originalOrder.school as any,
+                block: originalOrder.block,
+                room: originalOrder.room,
+                area: originalOrder.area as any,
+                street: originalOrder.street,
+                houseNumber: originalOrder.houseNumber,
+            };
+            result = await submitGenericOrder({ ...newOrderData, deviceId: deviceId || undefined, userId: user?.uid });
+        } else {
+            const newOrderData: OrderInput = {
+                chickenType: originalOrder.chickenType!,
+                piecesType: originalOrder.piecesType,
+                quantity: originalOrder.quantity,
+                price: originalOrder.price,
+                pieceDetails: originalOrder.pieceDetails,
+                name: originalOrder.name,
+                phone: originalOrder.phone,
+                deliveryLocationType: originalOrder.deliveryLocationType,
+                school: originalOrder.school as any,
+                block: originalOrder.block,
+                room: originalOrder.room,
+                area: originalOrder.area as any,
+                street: originalOrder.street,
+                houseNumber: originalOrder.houseNumber,
+            };
+            result = await submitOrder({ ...newOrderData, deviceId: deviceId || undefined, userId: user?.uid });
+        }
 
         if (result.success && result.orderId) {
-            toast({
-              title: 'Success!',
-              description: 'A new order has been placed based on your previous one.',
-            });
-
+            toast({ title: 'Success!', description: 'A new order has been placed based on your previous one.' });
             if (!user) {
                 const anonymousOrderIds = JSON.parse(localStorage.getItem('anonymousOrderIds') || '[]');
                 anonymousOrderIds.push(result.orderId);
@@ -122,11 +141,7 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
             }
             setIsDetailsOpen(false);
         } else {
-            toast({
-              variant: 'destructive',
-              title: 'Order Failed',
-              description: result.message || 'Could not place the new order.',
-            });
+            toast({ variant: 'destructive', title: 'Order Failed', description: result.message || 'Could not place the new order.' });
         }
         setReorderingId(null);
     };
@@ -144,7 +159,6 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
         return emptyState;
     }
 
-    // Sort orders by date descending before rendering
     const sortedOrders = [...orders].sort((a, b) => b.fullOrder.createdAt.toMillis() - a.fullOrder.createdAt.toMillis());
 
     return (
@@ -262,7 +276,6 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
 
             <Dialog open={isReceiptOpen} onOpenChange={(open) => {
                 setIsReceiptOpen(open);
-                // If we are closing the receipt, we don't want to keep the order selected.
                 if (!open) {
                     setSelectedOrder(null);
                 }
@@ -307,7 +320,6 @@ export function OrderHistory() {
     setIsLoading(true);
 
     if (user) {
-        // User is logged in, fetch their orders
         const userQuery = query(orderColl, where('userId', '==', user.uid));
         unsubscribe = onSnapshot(userQuery, (snapshot) => {
             const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder));
@@ -319,12 +331,11 @@ export function OrderHistory() {
             setIsLoading(false);
         });
     } else if (deviceId) {
-        // User is logged out, fetch orders for this device that are anonymous
         const deviceQuery = query(orderColl, where('deviceId', '==', deviceId));
         unsubscribe = onSnapshot(deviceQuery, (snapshot) => {
             const fetchedOrders = snapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as FirestoreOrder))
-                .filter(order => !order.userId); // Ensure we only show orders placed anonymously
+                .filter(order => !order.userId);
             setOrders(fetchedOrders);
             setIsLoading(false);
         }, (error) => {
@@ -333,7 +344,6 @@ export function OrderHistory() {
             setIsLoading(false);
         });
     } else {
-        // No user and no device ID, so no orders to show
         setOrders([]);
         setIsLoading(false);
     }
@@ -357,20 +367,18 @@ export function OrderHistory() {
   const pendingOrders = formattedOrders.filter(o => o.status === 'Pending' || o.status === 'Confirmed');
   const completedOrders = formattedOrders.filter(o => o.status === 'Delivered');
 
-  // On initial load, if pending is empty but history has items, switch to history.
   useEffect(() => {
     if (!isLoading && activeTab === 'pending' && pendingOrders.length === 0 && completedOrders.length > 0) {
       setActiveTab('history');
     }
   }, [isLoading, activeTab, pendingOrders.length, completedOrders.length]);
 
-  // If user is on an empty pending tab, switch back to history after a minute.
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (activeTab === 'pending' && !isLoading && pendingOrders.length === 0 && completedOrders.length > 0) {
         timer = setTimeout(() => {
             setActiveTab('history');
-        }, 60000); // 1 minute
+        }, 60000);
     }
 
     return () => {
@@ -404,7 +412,7 @@ export function OrderHistory() {
                           <List className="mx-auto h-12 w-12 text-foreground/30" />
                           <h3 className="mt-4 text-lg font-medium">No pending orders</h3>
                           <p className="mt-1 text-sm text-foreground/60">
-                              You have no pending reservations. Start by ordering some chicken!
+                              You have no pending reservations. Start by ordering some products!
                           </p>
                       </div>
                   }

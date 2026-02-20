@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect } from 'react';
@@ -7,7 +6,7 @@ import { useUser } from '@/hooks/use-user';
 import AdminMobileHeader from "@/components/layout/AdminMobileHeader";
 import AdminSidebar from "@/components/layout/AdminSidebar";
 import { AdminProvider } from "@/context/AdminContext";
-import { Loader2 } from 'lucide-react';
+import { Loader } from '@/components/ui/loader';
 
 export default function AdminLayout({
     children,
@@ -28,7 +27,7 @@ export default function AdminLayout({
     if (isLoading || userRole !== 'admin') {
         return (
             <div className="flex justify-center items-center h-screen">
-                <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                <Loader />
             </div>
         );
     }
