@@ -187,7 +187,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
     const cachedPrices = localStorage.getItem('curbsidePrices');
     if (cachedPrices) {
       const parsedPrices = JSON.parse(cachedPrices);
-      // Ensure the feature flag has a default value if it's not in cache
+      // Ensure the flag has a default value
       if (typeof parsedPrices.isChoosePiecesEnabled === 'undefined') {
         parsedPrices.isChoosePiecesEnabled = true;
       }
@@ -361,7 +361,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
   const ChickenSection = (
     <section 
       className={cn(
-        "space-y-4 border p-4 rounded-lg",
+        "space-y-4 border px-3 py-4 rounded-lg",
         formLayout === 'continuous' && isBounceAnimationEnabled && !isFirstSectionInteracted && 'animate-bounce-subtle'
       )}
       onClick={() => {
@@ -621,7 +621,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
 
   const DeliverySection = (
       <section className={cn(
-        "space-y-4 border p-4 rounded-lg",
+        "space-y-4 border px-3 py-4 rounded-lg",
         formLayout === 'continuous' && isBounceAnimationEnabled && isFirstSectionInteracted && !isDeliverySectionComplete && 'animate-bounce-subtle'
       )}>
         <h2 className="text-2xl font-bold font-headline">2. Delivery Details</h2>
@@ -842,14 +842,14 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 p-6 overflow-x-hidden">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 py-6 px-0 sm:px-6 overflow-x-hidden">
         {formLayout === 'stacked' ? (
           <>
-            <div className="flex items-center gap-2 rounded-md bg-accent/20 border border-accent/50 p-3 text-sm text-accent-foreground">
+            <div className="mx-2 sm:mx-0 flex items-center gap-2 rounded-md bg-accent/20 border border-accent/50 p-3 text-sm text-accent-foreground">
               <Info className="h-5 w-5 text-accent" />
               <span>Note: All orders are pay on delivery.</span>
             </div>
-            <div>
+            <div className="px-2 sm:px-0">
               {currentStep === 'chicken' && (
                   <div className="animate-in fade-in-0 slide-in-from-left-20 duration-500">
                     {ChickenSection}
@@ -881,7 +881,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
             </div>
           </>
         ) : (
-          <>
+          <div className="px-2 sm:px-0 space-y-8">
             <div className="flex items-center gap-2 rounded-md bg-accent/20 border border-accent/50 p-3 text-sm text-accent-foreground">
                 <Info className="h-5 w-5 text-accent" />
                 <span>Note: All orders are pay on delivery.</span>
@@ -889,7 +889,7 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
             {ChickenSection}
             {DeliverySection}
             {SubmitSection}
-          </>
+          </div>
         )}
       </form>
     </Form>

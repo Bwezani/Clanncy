@@ -135,7 +135,7 @@ export default function GenericOrderForm({ product, formLayout = 'continuous' }:
   };
 
   const SelectionSection = (
-    <section className="space-y-6 border p-4 md:p-6 rounded-lg bg-card shadow-sm">
+    <section className="space-y-6 border px-3 py-4 sm:p-6 rounded-lg bg-card shadow-sm">
       <h2 className="text-2xl font-bold font-headline flex items-center gap-2">
           <Tag className="h-6 w-6 text-primary" />
           1. Select Your {product.name}
@@ -240,7 +240,7 @@ export default function GenericOrderForm({ product, formLayout = 'continuous' }:
   );
 
   const DeliverySection = (
-    <section className="space-y-4 border p-4 md:p-6 rounded-lg bg-card shadow-sm">
+    <section className="space-y-4 border px-3 py-4 sm:p-6 rounded-lg bg-card shadow-sm">
       <h2 className="text-2xl font-bold font-headline flex items-center gap-2">
           <Layers className="h-6 w-6 text-primary" />
           2. Delivery Details
@@ -361,8 +361,8 @@ export default function GenericOrderForm({ product, formLayout = 'continuous' }:
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 p-6">
-        <div className="flex items-center gap-2 rounded-md bg-accent/20 border border-accent/50 p-3 text-sm text-accent-foreground">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 py-6 px-0 sm:px-6">
+        <div className="mx-2 sm:mx-0 flex items-center gap-2 rounded-md bg-accent/20 border border-accent/50 p-3 text-sm text-accent-foreground">
             <Info className="h-5 w-5 text-accent" />
             <span>Note: All orders are pay on delivery.</span>
         </div>
@@ -371,27 +371,39 @@ export default function GenericOrderForm({ product, formLayout = 'continuous' }:
             <>
                 {currentStep === 'selection' && (
                     <div className="animate-in fade-in slide-in-from-left-4 duration-300 space-y-6">
-                        {SelectionSection}
-                        <Button type="button" size="lg" className="w-full text-lg h-14" onClick={() => setCurrentStep('delivery')}>
-                            Enter Delivery Details <ArrowRight className="ml-2 h-5 w-5" />
-                        </Button>
-                        {InfoIndicators}
+                        <div className="px-2 sm:px-0">
+                            {SelectionSection}
+                        </div>
+                        <div className="px-2 sm:px-0">
+                            <Button type="button" size="lg" className="w-full text-lg h-14" onClick={() => setCurrentStep('delivery')}>
+                                Enter Delivery Details <ArrowRight className="ml-2 h-5 w-5" />
+                            </Button>
+                        </div>
+                        <div className="px-2 sm:px-0">
+                            {InfoIndicators}
+                        </div>
                     </div>
                 )}
                 {currentStep === 'delivery' && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setCurrentStep('selection')} className="hover:bg-accent/50">
-                            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Selection
-                        </Button>
-                        {DeliverySection}
-                        <Button type="submit" size="lg" className="w-full text-lg h-14" disabled={isPending || areSlotsFull}>
-                            {isPending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : areSlotsFull ? "Sold Out" : `Reserve Your ${product.name}`}
-                        </Button>
+                        <div className="px-2 sm:px-0">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => setCurrentStep('selection')} className="hover:bg-accent/50">
+                                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Selection
+                            </Button>
+                        </div>
+                        <div className="px-2 sm:px-0">
+                            {DeliverySection}
+                        </div>
+                        <div className="px-2 sm:px-0">
+                            <Button type="submit" size="lg" className="w-full text-lg h-14" disabled={isPending || areSlotsFull}>
+                                {isPending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : areSlotsFull ? "Sold Out" : `Reserve Your ${product.name}`}
+                            </Button>
+                        </div>
                     </div>
                 )}
             </>
         ) : (
-            <div className="space-y-8">
+            <div className="space-y-8 px-2 sm:px-0">
                 {SelectionSection}
                 {DeliverySection}
                 <div className="space-y-4">
