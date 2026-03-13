@@ -6,7 +6,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase/config';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, getDoc, setDoc, Timestamp, deleteDoc, writeBatch, getDocs, where, runTransaction, increment, serverTimestamp, addDoc } from 'firebase/firestore';
-import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings, AdminUser, UserRole, DeliveryRecord, FirestoreDeliveryRecord, AdminExpense, FirestoreExpense, Product, FirestoreProduct } from '@/lib/types';
+import type { FirestoreOrder, FirestoreDevice, Prices, ContactSettings, HomepageSettings, AdminOrder, AdminDevice, GoalsSettings, DeliverySettings, AdminUser, UserRole, DeliveryRecord, FirestoreDeliveryRecord, AdminExpense, FirestoreExpense, Product, FirestoreProduct, ReferralSettings } from '@/lib/types';
 import { useUser } from '@/hooks/use-user';
 
 function formatOrderItems(order: FirestoreOrder): string {
@@ -62,6 +62,7 @@ const defaultHomepage: HomepageSettings = {
 };
 const defaultDelivery: DeliverySettings = { totalSlots: 50, disableWhenSlotsFull: true, slotsFullMessage: "We're fully booked! Check back later.", nextDeliveryDate: undefined, isSlotsEnabled: true };
 const defaultGoals: GoalsSettings = { salesTarget: 0, reservationsTarget: 0, devicesTarget: 0, startDate: undefined, endDate: undefined };
+const defaultReferral: ReferralSettings = { isEnabled: true, earningsPerSale: 50 };
 
 interface AdminContextType {
     orders: AdminOrder[];
@@ -71,6 +72,7 @@ interface AdminContextType {
     products: Product[];
     deliveredRecords: DeliveryRecord[];
     droppedRecords: DeliveryRecord[];
+    referralSettings: ReferralSettings;
     userRole: UserRole | null;
     confirmDelivery: (orderId: string) => void;
     markAsDelivered: (orderId: string) => void;
@@ -95,7 +97,9 @@ interface AdminContextType {
     goals: GoalsSettings;
     setGoals: (goals: GoalsSettings) => void;
     clearGoals: () => void;
+    setReferralSettings: (settings: ReferralSettings) => void;
     updateUserRole: (userId: string, role: UserRole) => void;
+    markReferrerAsPaid: (userId: string, totalDeliveredCount: number) => Promise<void>;
     isLoading: boolean;
     isSaving: boolean;
     saveAllSettings: () => void;
@@ -122,6 +126,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [contact, setContact] = useState<ContactSettings>(defaultContact);
     const [homepage, setHomepage] = useState<HomepageSettings>(defaultHomepage);
     const [goals, setGoals] = useState<GoalsSettings>(defaultGoals);
+    const [referralSettings, setReferralSettings] = useState<ReferralSettings>(defaultReferral);
     const [deliveredRecords, setDeliveredRecords] = useState<DeliveryRecord[]>([]);
     const [droppedRecords, setDroppedRecords] = useState<DeliveryRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -241,7 +246,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
             subscriptions.push(onSnapshot(query(collection(db, "users"), orderBy("createdAt", "desc")), (querySnapshot) => {
                 setUsers(querySnapshot.docs.map(doc => ({
-                    id: doc.id, email: doc.data().email, role: doc.data().role || 'customer',
+                    id: doc.id, 
+                    email: doc.data().email, 
+                    role: doc.data().role || 'customer',
+                    referralCode: doc.data().referralCode,
+                    momoNumber: doc.data().momoNumber,
+                    paidReferralsCount: doc.data().paidReferralsCount || 0,
                     createdAt: doc.data().createdAt ? format(doc.data().createdAt.toDate(), 'do MMMM, yyyy') : 'N/A',
                 })));
             }));
@@ -313,6 +323,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                     if (goalsDocSnap.exists()) {
                         const gData = goalsDocSnap.data();
                         setGoals({ salesTarget: gData.salesTarget || 0, reservationsTarget: gData.reservationsTarget || 0, devicesTarget: gData.devicesTarget || 0, startDate: gData.startDate?.toDate(), endDate: gData.endDate?.toDate() });
+                    }
+                    const referralDocSnap = await getDoc(doc(db, 'settings', 'referral'));
+                    if (referralDocSnap.exists()) {
+                        setReferralSettings({ ...defaultReferral, ...referralDocSnap.data() } as ReferralSettings);
                     }
                 } finally {
                     setIsLoading(false);
@@ -494,6 +508,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             batch.set(doc(db, 'settings', 'contact'), contact, { merge: true });
             batch.set(doc(db, 'settings', 'homepage'), homepage, { merge: true });
             batch.set(doc(db, 'settings', 'goals'), { ...goals, startDate: goals.startDate ? Timestamp.fromDate(goals.startDate) : null, endDate: goals.endDate ? Timestamp.fromDate(goals.endDate) : null }, { merge: true });
+            batch.set(doc(db, 'settings', 'referral'), referralSettings, { merge: true });
             await batch.commit();
             localStorage.setItem('curbsidePrices', JSON.stringify(prices));
             toast({ title: 'Success!', description: 'All settings have been saved.' });
@@ -514,6 +529,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const markReferrerAsPaid = async (userId: string, totalDeliveredCount: number) => {
+        setIsSaving(true);
+        try {
+            await updateDoc(doc(db, 'users', userId), { paidReferralsCount: totalDeliveredCount });
+            toast({ title: "Payout Recorded", description: "The referrer has been marked as paid for all current sales." });
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: "Error", description: "Could not record payout." });
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
 
     return (
         <AdminContext.Provider value={{ 
@@ -522,7 +550,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             addExpense, deleteExpense, saveProduct, deleteProduct, deleteRecord, clearAllOrders, resetSlots,
             deliverySettings, setDeliverySettings, prices, setPrices,
             contact, setContact, homepage, setHomepage, goals, setGoals, clearGoals,
-            updateUserRole, isLoading, isSaving, saveAllSettings, processingOrder, financials,
+            referralSettings, setReferralSettings,
+            updateUserRole, markReferrerAsPaid, isLoading, isSaving, saveAllSettings, processingOrder, financials,
          }}>
             {children}
         </AdminContext.Provider>

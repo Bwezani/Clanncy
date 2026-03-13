@@ -1,10 +1,11 @@
+
 'use client';
 
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, DollarSign, Loader2, Save, ShoppingCart, Smartphone, Trash2, AlertTriangle, Home, Layout } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Loader2, Save, ShoppingCart, Smartphone, Trash2, AlertTriangle, Home, Layout, Gift } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
@@ -88,6 +89,8 @@ export default function SettingsDashboard() {
     goals,
     setGoals,
     clearGoals,
+    referralSettings,
+    setReferralSettings,
     resetSlots,
     isSaving,
     isLoading,
@@ -245,6 +248,43 @@ export default function SettingsDashboard() {
                         </div>
                     </div>
                 )}
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Gift className="h-5 w-5" /> Referral Program Settings</CardTitle>
+                <CardDescription>Configure your customer referral system.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <Label htmlFor="referral-enabled-switch" className="text-base">Activate Referral Program</Label>
+                        <p className="text-sm text-muted-foreground">
+                            When disabled, the "Refer & Earn" page and nav links will be hidden.
+                        </p>
+                    </div>
+                    <Switch
+                        id="referral-enabled-switch"
+                        checked={referralSettings.isEnabled}
+                        onCheckedChange={(checked) => setReferralSettings({ ...referralSettings, isEnabled: checked })}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="referral-earnings">Earnings per Sale (K)</Label>
+                    <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            id="referral-earnings"
+                            type="number"
+                            className="pl-10"
+                            value={referralSettings.earningsPerSale}
+                            onChange={(e) => setReferralSettings({ ...referralSettings, earningsPerSale: parseFloat(e.target.value) || 0 })}
+                            min="0"
+                        />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic">This value is used for your internal tracking and calculations.</p>
+                </div>
             </CardContent>
         </Card>
 

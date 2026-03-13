@@ -116,12 +116,24 @@ export default function GenericOrderForm({ product, formLayout = 'continuous' }:
 
   const onSubmit = (values: GenericOrderInput) => {
     const deviceId = localStorage.getItem('deviceId');
-    const submissionData = { ...values, deviceId: deviceId || undefined, userId: user?.uid };
+    const referralCode = localStorage.getItem('activeReferralCode');
+    
+    const submissionData = { 
+        ...values, 
+        deviceId: deviceId || undefined, 
+        userId: user?.uid,
+        referralCode: referralCode || undefined
+    };
 
     startTransition(async () => {
       const result = await submitGenericOrder(submissionData);
       if (result.success && result.orderId) {
         toast({ title: 'Success!', description: result.message });
+
+        // Clear active referral code and mark usage as exhausted for this browser
+        localStorage.removeItem('activeReferralCode');
+        localStorage.setItem('referralUsageExhausted', 'true');
+
         if (!user) {
             const anonymousOrderIds = JSON.parse(localStorage.getItem('anonymousOrderIds') || '[]');
             anonymousOrderIds.push(result.orderId);

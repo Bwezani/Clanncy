@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { BarChart, Home, Menu, Package, Settings, Smartphone, Users, ChevronRight, Landmark, Tag } from "lucide-react";
+import { BarChart, Home, Menu, Package, Settings, Smartphone, Users, ChevronRight, Landmark, Tag, Gift } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from 'react';
@@ -45,6 +45,12 @@ export const adminNavGroups = [
                 label: 'Products',
                 icon: Tag,
                 subtitle: 'Manage store catalog'
+            },
+            {
+                href: '/admin/referrals',
+                label: 'Referrals',
+                icon: Gift,
+                subtitle: 'Manage program & payouts'
             },
         ]
     },

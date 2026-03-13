@@ -65,6 +65,7 @@ export interface FirestoreOrder {
   houseNumber?: string;
   deviceId?: string;
   userId?: string;
+  referralCode?: string;
 }
 
 export type AdminDevice = {
@@ -130,11 +131,19 @@ export interface GoalsSettings {
     endDate?: Date;
 }
 
+export interface ReferralSettings {
+    isEnabled: boolean;
+    earningsPerSale: number;
+}
+
 export type AdminUser = {
   id: string;
   email: string;
   role: UserRole;
   createdAt: string;
+  referralCode?: string;
+  momoNumber?: string;
+  paidReferralsCount?: number;
 };
 
 export type DeliveryRecord = {

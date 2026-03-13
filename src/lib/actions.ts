@@ -47,8 +47,14 @@ async function performOrderSubmission(data: any, schema: any, productType: 'chic
             createdAt: serverTimestamp(),
             status: 'Pending',
         };
+        
         if (data.userId) {
             orderData.userId = data.userId;
+        }
+
+        // Include referral code if present in the data payload
+        if (data.referralCode) {
+            orderData.referralCode = data.referralCode;
         }
 
         transaction.set(newOrderRef, orderData);
@@ -74,10 +80,10 @@ async function performOrderSubmission(data: any, schema: any, productType: 'chic
   }
 }
 
-export async function submitOrder(data: OrderInput & { userId?: string }) {
+export async function submitOrder(data: OrderInput & { userId?: string, referralCode?: string }) {
     return performOrderSubmission(data, orderSchema, 'chicken');
 }
 
-export async function submitGenericOrder(data: GenericOrderInput & { userId?: string }) {
+export async function submitGenericOrder(data: GenericOrderInput & { userId?: string, referralCode?: string }) {
     return performOrderSubmission(data, genericOrderSchema, 'generic');
 }

@@ -3,8 +3,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import React, { useState, useMemo } from 'react';
-import { Menu, LayoutDashboard, LogOut, Package, ChevronRight, ShoppingBag, History } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Menu, LayoutDashboard, LogOut, Package, ChevronRight, ShoppingBag, History, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '../ThemeToggle';
@@ -16,25 +16,43 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Separator } from '../ui/separator';
 import { CustomerServiceDialog } from '../CustomerServiceDialog';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
 
 const allNavLinks = [
     { href: '/', label: 'Order Now', icon: ShoppingBag },
     { href: '/order-history', label: 'Order History', icon: History },
+    { href: '/referral', label: 'Refer & Earn', icon: Gift, isReferral: true },
     { href: '/deliveries', label: 'Deliveries', icon: Package, for: ['assistant', 'admin'] },
     { href: '/admin', label: 'Admin', icon: LayoutDashboard, for: ['admin'] },
 ]
 
 export default function Header() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isReferralEnabled, setIsReferralEnabled] = useState(true);
   const pathname = usePathname();
   const { user, userRole } = useUser();
 
+  useEffect(() => {
+    const ref = doc(db, 'settings', 'referral');
+    const unsub = onSnapshot(ref, (snap) => {
+        if (snap.exists()) {
+            setIsReferralEnabled(snap.data().isEnabled ?? true);
+        }
+    });
+    return () => unsub();
+  }, []);
+
   const navLinks = useMemo(() => {
     return allNavLinks.filter(link => {
+        // Filter by referral enablement
+        if (link.isReferral && !isReferralEnabled) return false;
+        
+        // Filter by user role
         if (!link.for) return true; // Public links
         return userRole && link.for.includes(userRole);
     })
-  }, [userRole]);
+  }, [userRole, isReferralEnabled]);
 
   if (pathname.startsWith('/admin')) {
     return null;

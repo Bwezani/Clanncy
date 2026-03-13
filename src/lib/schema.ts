@@ -87,6 +87,7 @@ const pieceDetailsSchema = z.object({
 const commonFields = {
   deviceId: z.string().optional(),
   userId: z.string().optional(),
+  referralCode: z.string().optional(),
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   phone: z.string().min(10, { message: 'Please enter a valid phone number.' }),
   deliveryLocationType: z.enum(['school', 'off-campus']).default('school'),

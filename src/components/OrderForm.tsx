@@ -314,9 +314,13 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
 
   const onSubmit = (values: OrderInput) => {
     const deviceId = overrideDeviceId || localStorage.getItem('deviceId');
-    const submissionData: OrderInput & { userId?: string, deviceId?: string } = { 
+    // Attribution only happens for direct customer orders, not admin-overridden ones
+    const referralCode = !overrideDeviceId ? localStorage.getItem('activeReferralCode') : undefined;
+    
+    const submissionData: OrderInput & { userId?: string, deviceId?: string, referralCode?: string } = { 
         ...values, 
-        deviceId: deviceId || undefined 
+        deviceId: deviceId || undefined,
+        referralCode: referralCode || undefined
     };
 
     if (user) {
@@ -336,6 +340,10 @@ export default function OrderForm({ formLayout = 'continuous', overrideDeviceId,
           title: 'Success!',
           description: result.message,
         });
+
+        // Clear active referral code and mark usage as exhausted for this browser
+        localStorage.removeItem('activeReferralCode');
+        localStorage.setItem('referralUsageExhausted', 'true');
 
         if (!user) {
             const anonymousOrderIds = JSON.parse(localStorage.getItem('anonymousOrderIds') || '[]');

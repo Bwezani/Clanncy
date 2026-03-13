@@ -8,6 +8,8 @@ import Footer from '@/components/layout/Footer';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import DeviceIdManager from '@/components/DeviceIdManager';
 import { AuthProvider } from '@/context/AuthContext';
+import ReferralTracker from '@/components/ReferralTracker';
+import { Suspense } from 'react';
 
 export const metadata: Metadata = {
   title: 'Curbside',
@@ -37,6 +39,9 @@ export default function RootLayout({
             disableTransitionOnChange
         >
           <AuthProvider>
+            <Suspense fallback={null}>
+              <ReferralTracker />
+            </Suspense>
             <DeviceIdManager />
             <div id="root-layout">
               <Header />
