@@ -8,6 +8,7 @@ import Footer from '@/components/layout/Footer';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import DeviceIdManager from '@/components/DeviceIdManager';
 import { AuthProvider } from '@/context/AuthContext';
+import { AdminProvider } from '@/context/AdminContext';
 import ReferralTracker from '@/components/ReferralTracker';
 import { Suspense } from 'react';
 
@@ -39,18 +40,20 @@ export default function RootLayout({
             disableTransitionOnChange
         >
           <AuthProvider>
-            <Suspense fallback={null}>
-              <ReferralTracker />
-            </Suspense>
-            <DeviceIdManager />
-            <div id="root-layout">
-              <Header />
-              <main className="flex-grow container mx-auto px-0 sm:px-4 md:px-6 py-4 md:py-6">
-              {children}
-              </main>
-              <Footer />
-            </div>
-            <Toaster />
+            <AdminProvider>
+              <Suspense fallback={null}>
+                <ReferralTracker />
+              </Suspense>
+              <DeviceIdManager />
+              <div id="root-layout">
+                <Header />
+                <main className="flex-grow container mx-auto px-0 sm:px-4 md:px-6 py-4 md:py-6">
+                {children}
+                </main>
+                <Footer />
+              </div>
+              <Toaster />
+            </AdminProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -11,6 +11,7 @@ import { ThemeToggle } from '../ThemeToggle';
 import { usePathname } from 'next/navigation';
 import { LoginSignUpDialog } from '../auth/LoginSignUpDialog';
 import { useUser } from '@/hooks/use-user';
+import { useAdmin } from '@/context/AdminContext';
 import { signOut } from '@/lib/firebase/auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -32,6 +33,8 @@ export default function Header() {
   const [isReferralEnabled, setIsReferralEnabled] = useState(true);
   const pathname = usePathname();
   const { user, userRole } = useUser();
+  const { orders } = useAdmin();
+  const pendingOrderCount = orders.filter(o => o.status === 'Pending').length;
 
   useEffect(() => {
     const ref = doc(db, 'settings', 'referral');
@@ -79,17 +82,23 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
             {navLinks.map(link => {
                 const isActive = pathname === link.href;
+                const showBadge = link.href === '/deliveries' && pendingOrderCount > 0;
                 return (
                     <Link 
                         key={link.href} 
                         href={link.href} 
                         className={cn(
-                            "flex items-center gap-2 transition-colors",
+                            "flex items-center gap-2 transition-colors relative",
                             isActive ? "text-primary" : "text-foreground/70 hover:text-foreground"
                         )}
                     >
                         {link.icon && <link.icon className="h-4 w-4" />}
                         {link.label}
+                        {showBadge && (
+                            <span className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold px-1 leading-none">
+                                {pendingOrderCount > 99 ? '99+' : pendingOrderCount}
+                            </span>
+                        )}
                     </Link>
                 )
             })}
@@ -133,6 +142,7 @@ export default function Header() {
                             {navLinks.map((link, index) => {
                                 const isActive = pathname === link.href;
                                 const Icon = link.icon;
+                                const showBadge = link.href === '/deliveries' && pendingOrderCount > 0;
                                 return (
                                     <React.Fragment key={link.href}>
                                         <Link
@@ -147,7 +157,13 @@ export default function Header() {
                                             <div className="flex-1">
                                                 <span className={cn("font-medium", isActive && "font-semibold")}>{link.label}</span>
                                             </div>
-                                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                            {showBadge ? (
+                                                <span className="flex items-center justify-center min-w-[20px] h-[20px] rounded-full bg-red-500 text-white text-[10px] font-bold px-1 leading-none">
+                                                    {pendingOrderCount > 99 ? '99+' : pendingOrderCount}
+                                                </span>
+                                            ) : (
+                                                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                            )}
                                         </Link>
                                         {index < navLinks.length - 1 && <Separator className="mx-3 my-0 bg-border/60" />}
                                     </React.Fragment>
