@@ -28,7 +28,7 @@ export default function AdminSidebar() {
                 </Link>
             </div>
 
-            <nav className="flex flex-col gap-4 flex-grow">
+            <nav className="flex flex-col gap-4 flex-grow min-h-0 overflow-y-auto pr-1">
                  {adminNavGroups.map((group, groupIndex) => (
                     <div key={groupIndex} className="bg-card rounded-xl shadow-sm p-2 space-y-1 border">
                         {group.links.map((link, linkIndex) => {

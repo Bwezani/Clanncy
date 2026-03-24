@@ -13,7 +13,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Smartphone, Search, Calendar, Monitor, Cpu } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader } from "@/components/ui/loader";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
@@ -100,8 +99,16 @@ function DeviceTable({ devices }: { devices: AdminDevice[] }) {
 
 export default function DevicesDashboard() {
     const { devices, isLoading } = useAdmin();
-    const isMobile = useIsMobile();
+    const [isLargeScreen, setIsLargeScreen] = React.useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+
+    React.useEffect(() => {
+        const mql = window.matchMedia("(min-width: 1024px)");
+        const onChange = () => setIsLargeScreen(mql.matches);
+        mql.addEventListener("change", onChange);
+        setIsLargeScreen(mql.matches);
+        return () => mql.removeEventListener("change", onChange);
+    }, []);
 
     const filteredDevices = useMemo(() => {
         if (!searchTerm) return devices;
@@ -160,7 +167,7 @@ export default function DevicesDashboard() {
                 </CardHeader>
                 <CardContent className="pt-6">
                    {filteredDevices.length > 0 ? (
-                       isMobile ? (
+                       !isLargeScreen ? (
                            <div className="space-y-4">
                                {filteredDevices.map(device => <DeviceCard key={device.id} device={device} />)}
                            </div>
