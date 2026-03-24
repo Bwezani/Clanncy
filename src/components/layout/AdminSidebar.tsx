@@ -32,7 +32,7 @@ export default function AdminSidebar() {
                  {adminNavGroups.map((group, groupIndex) => (
                     <div key={groupIndex} className="bg-card rounded-xl shadow-sm p-2 space-y-1 border">
                         {group.links.map((link, linkIndex) => {
-                            const { href, label, icon: Icon, subtitle } = link;
+                            const { href, label, icon: Icon } = link;
                             const isActive = pathname === href;
                             return (
                                 <React.Fragment key={href}>
@@ -46,7 +46,7 @@ export default function AdminSidebar() {
                                         {Icon && <Icon className="h-6 w-6 text-muted-foreground" />}
                                         <div className="flex-1">
                                             <span className={cn("font-medium", isActive && "font-semibold")}>{label}</span>
-                                            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+                                            {'subtitle' in link && link.subtitle && <p className="text-sm text-muted-foreground">{link.subtitle}</p>}
                                         </div>
                                         <ChevronRight className="h-5 w-5 text-muted-foreground" />
                                     </Link>
