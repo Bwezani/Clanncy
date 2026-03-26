@@ -167,8 +167,14 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
             {sortedOrders.map(order => {
                 const isThisOrderReordering = reorderingId === order.id;
                 return (
-                    <Card key={order.id} onClick={() => handleOrderClick(order)} className="shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer">
-                        <CardHeader className="flex flex-row items-start justify-between pb-2">
+                    <Card key={order.id} onClick={() => handleOrderClick(order)} className={cn(
+                        "shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden relative group border-l-4",
+                        order.status === 'Delivered' ? 'border-l-primary' :
+                        order.status === 'Confirmed' ? 'border-l-accent' :
+                        'border-l-muted-foreground/30'
+                    )}>
+                        <div className="absolute -right-8 -top-8 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors duration-500 pointer-events-none" />
+                        <CardHeader className="flex flex-row items-start justify-between pb-2 relative z-10">
                             {order.status === 'Delivered' ? (
                                 <div>
                                     <Button
@@ -178,7 +184,7 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
                                             handleOrderAgain(order);
                                         }}
                                         disabled={reorderingId !== null}
-                                        className="bg-primary hover:bg-primary/90"
+                                        className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform hover:scale-105"
                                     >
                                         {isThisOrderReordering ? (
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -199,16 +205,21 @@ function OrderList({ orders, emptyState, isLoading }: { orders: OrderType[], emp
                                 order.status === 'Delivered' ? 'outline' :
                                 order.status === 'Pending' ? 'secondary' :
                                 'default'
-                            } className={cn(order.status === 'Confirmed' && 'bg-accent text-accent-foreground')}>
+                            } className={cn(
+                                "shadow-sm",
+                                order.status === 'Confirmed' && 'bg-accent/20 text-accent-foreground hover:bg-accent/30 border-accent/30',
+                                order.status === 'Delivered' && 'border-primary/40 text-primary bg-primary/5',
+                                order.status === 'Pending' && 'bg-muted/50 text-muted-foreground'
+                            )}>
                                 {order.status}
                             </Badge>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="relative z-10">
                             <div className="flex justify-between items-end">
-                                <div>
-                                    <p className="font-semibold">{order.items}</p>
+                                <div className="bg-muted/30 px-3 py-1.5 rounded-md inline-block">
+                                    <p className="font-medium text-sm text-foreground/80">{order.items}</p>
                                 </div>
-                                <p className="text-xl font-bold text-primary">K{order.price.toFixed(2)}</p>
+                                <p className="text-2xl font-black text-primary drop-shadow-sm">K{order.price.toFixed(2)}</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -390,43 +401,47 @@ export function OrderHistory() {
 
   return (
     <>
-      <div className="mb-4">
-        <Button asChild size="lg" className="w-full">
+      <div className="mb-6">
+        <Button asChild size="lg" className="w-full h-14 text-lg font-bold shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground border-none">
           <Link href="/">
-            <Plus className="mr-2 h-5 w-5" />
+            <Plus className="mr-2 h-6 w-6" />
             Make a New Order
           </Link>
         </Button>
       </div>
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'history')} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="pending">Pending Reservations</TabsTrigger>
-              <TabsTrigger value="history">Reservation History</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 h-14 p-1.5 bg-muted/40 rounded-xl">
+              <TabsTrigger value="pending" className="rounded-lg h-full text-sm md:text-base font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-300">Pending Reservations</TabsTrigger>
+              <TabsTrigger value="history" className="rounded-lg h-full text-sm md:text-base font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-300">Reservation History</TabsTrigger>
           </TabsList>
-          <TabsContent value="pending" className="mt-6">
+          <TabsContent value="pending" className="mt-6 md:mt-8">
               <OrderList
                   orders={pendingOrders}
                   isLoading={isLoading}
                   emptyState={
-                      <div className="text-center py-16 border-2 border-dashed rounded-lg bg-card">
-                          <List className="mx-auto h-12 w-12 text-foreground/30" />
-                          <h3 className="mt-4 text-lg font-medium">No pending orders</h3>
-                          <p className="mt-1 text-sm text-foreground/60">
+                      <div className="text-center py-20 px-6 border-2 border-dashed border-primary/20 rounded-2xl bg-gradient-to-br from-primary/5 via-transparent to-transparent relative overflow-hidden">
+                          <div className="bg-primary/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <List className="h-12 w-12 text-primary/60" />
+                          </div>
+                          <h3 className="text-2xl font-bold text-foreground mb-2">No pending orders</h3>
+                          <p className="text-base text-muted-foreground max-w-sm mx-auto">
                               You have no pending reservations. Start by ordering some products!
                           </p>
                       </div>
                   }
               />
           </TabsContent>
-          <TabsContent value="history" className="mt-6">
+          <TabsContent value="history" className="mt-6 md:mt-8">
               <OrderList
                   orders={completedOrders}
                   isLoading={isLoading}
                   emptyState={
-                      <div className="text-center py-16 border-2 border-dashed rounded-lg bg-card">
-                          <List className="mx-auto h-12 w-12 text-foreground/30" />
-                          <h3 className="mt-4 text-lg font-medium">No completed orders</h3>
-                          <p className="mt-1 text-sm text-foreground/60">
+                      <div className="text-center py-20 px-6 border-2 border-dashed border-primary/20 rounded-2xl bg-gradient-to-br from-primary/5 via-transparent to-transparent relative overflow-hidden">
+                          <div className="bg-primary/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <List className="h-12 w-12 text-primary/60" />
+                          </div>
+                          <h3 className="text-2xl font-bold text-foreground mb-2">No completed orders</h3>
+                          <p className="text-base text-muted-foreground max-w-sm mx-auto">
                              Your past orders will appear here.
                           </p>
                       </div>
